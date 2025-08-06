@@ -1,0 +1,31 @@
+{
+  "name": "mcr3",
+  "version": "1.0.0",
+  "description": "Model Context Reasoner (MCR) v3",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node src/index.js",
+    "dev": "nodemon src/index.js",
+    "test": "jest"
+  },
+  "keywords": [
+    "ai",
+    "llm",
+    "prolog",
+    "neurosymbolic",
+    "reasoning"
+  ],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "@langchain/core": "^0.1.62",
+    "dotenv": "^16.4.5",
+    "express": "^4.19.2",
+    "tau-prolog": "^0.3.3",
+    "ws": "^8.17.0"
+  },
+  "devDependencies": {
+    "jest": "^29.7.0",
+    "nodemon": "^3.1.0"
+  }
+}
