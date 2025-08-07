@@ -29,15 +29,20 @@ class WebSocketHandler {
 
       switch (tool_name) {
         case 'session.create':
-          const sessionId = this.mcrService.createSession();
+          // createSession is now async because it seeds the KB
+          const sessionId = await this.mcrService.createSession();
           result = { success: true, sessionId };
           break;
         case 'session.assert':
-          result = await this.mcrService.assert(input.sessionId, input.naturalLanguageInput);
+          result = await this.mcrService.assert(input.sessionId, input.naturalLanguageInput, input.strategyName);
           break;
         case 'session.query':
-          result = await this.mcrService.query(input.sessionId, input.naturalLanguageInput);
+          result = await this.mcrService.query(input.sessionId, input.naturalLanguageInput, input.strategyName);
           break;
+        case 'session.explain':
+          result = await this.mcrService.explain(input.sessionId, input.prologRule);
+          break;
+        // TODO: Add cases for strategy.list, strategy.setActive, etc.
         default:
           result = { success: false, error: `Unknown tool: ${tool_name}` };
       }

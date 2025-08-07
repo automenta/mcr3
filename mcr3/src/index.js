@@ -7,6 +7,7 @@ require('dotenv').config();
 const WebSocketHandler = require('./api/websocketHandler');
 const MCRService = require('./services/mcrService');
 const StrategyManager = require('./services/strategyManager');
+const StrategyExecutor = require('./services/strategyExecutor');
 const reasoner = require('./providers/prologReasoner');
 const sessionStore = require('./store/sessionStore');
 
@@ -18,8 +19,14 @@ const PORT = process.env.PORT || 8080;
 
 // --- Dependency Injection ---
 // Initialize the core services and handlers
-const strategyManager = new StrategyManager();
-const mcrService = new MCRService({ reasoner, sessionStore, strategyManager });
+const strategyManager = new StrategyManager(); // This now loads strategies automatically
+const strategyExecutor = new StrategyExecutor();
+const mcrService = new MCRService({
+  reasoner,
+  sessionStore,
+  strategyManager,
+  strategyExecutor,
+});
 const webSocketHandler = new WebSocketHandler(mcrService);
 
 // Serve the MCR Workbench UI static files
