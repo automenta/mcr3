@@ -42,7 +42,15 @@ class WebSocketHandler {
         case 'session.explain':
           result = await this.mcrService.explain(input.sessionId, input.prologRule);
           break;
-        // TODO: Add cases for strategy.list, strategy.setActive, etc.
+        case 'strategy.list':
+          result = this.mcrService.listStrategies();
+          break;
+        case 'strategy.setActive':
+          result = this.mcrService.setActiveStrategy(input.name);
+          break;
+        case 'strategy.getActive':
+          result = this.mcrService.getActiveStrategy();
+          break;
         default:
           result = { success: false, error: `Unknown tool: ${tool_name}` };
       }

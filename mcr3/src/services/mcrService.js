@@ -94,6 +94,31 @@ class MCRService {
 
     return { success: true, explanation, strategy: strategy.name };
   }
+
+  // --- Strategy Management ---
+
+  listStrategies() {
+    return this.strategyManager.listStrategies();
+  }
+
+  setActiveStrategy(name) {
+    const success = this.strategyManager.setActiveStrategy(name);
+    if (!success) {
+      throw new Error(`Strategy not found: ${name}`);
+    }
+    return { success: true, activeStrategy: name };
+  }
+
+  getActiveStrategy() {
+    const activeStrategy = this.strategyManager.getActiveStrategy();
+    if (!activeStrategy) {
+      return { activeStrategy: null };
+    }
+    return {
+      name: activeStrategy.name,
+      description: activeStrategy.description,
+    };
+  }
 }
 
 module.exports = MCRService;
