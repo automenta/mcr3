@@ -1,6 +1,5 @@
 const fs = require('fs');
 const path = require('path');
-const { getLlm } = require('../providers/llmProvider');
 
 /**
  * Manages the loading and retrieval of translation strategies.
@@ -11,10 +10,23 @@ const { getLlm } = require('../providers/llmProvider');
  * and easily added or removed.
  */
 class StrategyManager {
-  constructor() {
+  constructor(initialLlm) {
     this.strategies = new Map();
     this.activeStrategyName = null;
-    this.llm = getLlm(); // Get the singleton LLM instance
+    this.llm = initialLlm; // The initial LLM is passed in.
+    this.loadStrategies();
+  }
+
+  /**
+   * Rebuilds all strategies using a new LLM instance.
+   * @param {object} newLlm - The new LangChain LLM instance.
+   */
+  rebuildStrategies(newLlm) {
+    console.log('Rebuilding strategies with new LLM instance.');
+    this.llm = newLlm;
+    // Clear existing strategies and reload them with the new LLM
+    this.strategies.clear();
+    this.activeStrategyName = null;
     this.loadStrategies();
   }
 

@@ -54,6 +54,18 @@ class WebSocketHandler {
         case 'strategy.getActive':
           result = this.mcrService.getActiveStrategy();
           break;
+
+        // LLM Configuration Tools
+        case 'llm.getProviders':
+          result = this.mcrService.getAvailableLlmProviders();
+          break;
+        case 'llm.getConfig':
+          result = this.mcrService.getLlmConfig();
+          break;
+        case 'llm.setConfig':
+          result = await this.mcrService.setLlmConfig(input);
+          break;
+
         default:
           result = { success: false, error: `Unknown tool: ${tool_name}` };
       }

@@ -18,34 +18,42 @@ const providerMap = {
 };
 
 /**
- * Creates and returns an instance of the configured LLM provider.
+ * Creates and returns an instance of a specified LLM provider.
  *
+ * @param {string} providerName - The name of the provider (e.g., 'openai', 'gemini').
+ * @param {object} options - Configuration options for the provider.
+ *                           For 'openai', this can include `apiKey`, `baseURL`.
+ *                           For 'gemini', this can include `apiKey`.
+ *                           For 'ollama', this can include `baseUrl`, `model`.
  * @returns {object} An instance of a LangChain chat model.
- * @throws {Error} If the configured provider is invalid or missing required configuration.
+ * @throws {Error} If the provider is invalid or required options are missing.
  */
-function getLlm() {
-  const providerName = process.env.MCR_LLM_PROVIDER?.toLowerCase();
-  const LlmClass = providerMap[providerName];
+function createLlm(providerName, options = {}) {
+  const LlmClass = providerMap[providerName?.toLowerCase()];
 
   if (!LlmClass) {
-    throw new Error(`Invalid or unspecified LLM provider: '${providerName}'. Check MCR_LLM_PROVIDER environment variable.`);
+    throw new Error(`Invalid LLM provider specified: '${providerName}'.`);
   }
 
-  console.log(`Initializing LLM provider: ${providerName}`);
+  console.log(`Creating LLM instance for provider: ${providerName}`);
 
-  // Configuration options are passed directly to the constructor.
-  // LangChain classes are designed to pick up credentials from environment
-  // variables (e.g., OPENAI_API_KEY, GOOGLE_API_KEY).
-  const config = {};
-  if (providerName === 'ollama') {
-    config.baseUrl = process.env.OLLAMA_BASE_URL;
-  }
-  // For OpenAI-compatible endpoints, users can set OPENAI_API_BASE
-  if (providerName === 'openai' && process.env.OPENAI_API_BASE) {
-    config.baseURL = process.env.OPENAI_API_BASE;
-  }
+  // Start with base configuration from provided options
+  const config = { ...options };
+
+  // LangChain classes are designed to also pick up credentials from environment
+  // variables if not provided in the config object. We will rely on that as a fallback.
+  // Example: new ChatOpenAI({ apiKey: '...' }) or just new ChatOpenAI() if OPENAI_API_KEY is set.
 
   return new LlmClass(config);
 }
 
-module.exports = { getLlm };
+/**
+ * Returns a list of available LLM provider names.
+ * @returns {string[]}
+ */
+function getAvailableProviders() {
+    return Object.keys(providerMap);
+}
+
+
+module.exports = { createLlm, getAvailableProviders };

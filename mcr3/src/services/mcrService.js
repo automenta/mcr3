@@ -1,5 +1,7 @@
 const fs = require('fs');
 const path = require('path');
+const { createLlm, getAvailableProviders } = require('../providers/llmProvider');
+const StrategyManager = require('./strategyManager');
 
 /**
  * The MCR Service is the central orchestrator of the MCR system.
@@ -7,12 +9,36 @@ const path = require('path');
  * the reasoner and other providers.
  */
 class MCRService {
-  constructor({ reasoner, sessionStore, strategyManager, strategyExecutor }) {
+  constructor({ reasoner, sessionStore, strategyExecutor }) {
     this.reasoner = reasoner;
     this.sessionStore = sessionStore;
-    this.strategyManager = strategyManager;
     this.strategyExecutor = strategyExecutor;
+
+    // Initialize LLM and StrategyManager
+    this.initializeLlm();
+
     console.log('MCRService initialized');
+  }
+
+  /**
+   * Initializes the LLM provider and strategy manager based on environment variables.
+   */
+  initializeLlm() {
+    const provider = process.env.MCR_LLM_PROVIDER?.toLowerCase() || 'openai';
+    const options = {
+        apiKey: process.env.OPENAI_API_KEY || process.env.GOOGLE_API_KEY,
+        model: process.env.MCR_LLM_MODEL,
+    };
+    if (provider === 'ollama') {
+        options.baseUrl = process.env.OLLAMA_BASE_URL;
+    }
+    if (provider === 'openai' && process.env.OPENAI_API_BASE) {
+        options.baseURL = process.env.OPENAI_API_BASE;
+    }
+
+    this.llmConfig = { provider, options };
+    const llm = createLlm(provider, options);
+    this.strategyManager = new StrategyManager(llm);
   }
 
   /**
@@ -110,6 +136,33 @@ class MCRService {
     }
     return { success: true, kb: session.kb };
   }
+
+  // --- LLM Configuration Management ---
+
+  getLlmConfig() {
+    return { success: true, config: this.llmConfig };
+  }
+
+  async setLlmConfig(config) {
+    try {
+      const { provider, options } = config;
+      const newLlm = createLlm(provider, options);
+      // Rebuild strategies with the new LLM
+      this.strategyManager.rebuildStrategies(newLlm);
+      // Update current config
+      this.llmConfig = config;
+      console.log('LLM configuration updated and strategies rebuilt.');
+      return { success: true, message: 'LLM configuration updated successfully.' };
+    } catch (error) {
+      console.error('Failed to set new LLM config:', error);
+      return { success: false, error: error.message };
+    }
+  }
+
+  getAvailableLlmProviders() {
+    return { success: true, providers: getAvailableProviders() };
+  }
+
 
   // --- Strategy Management ---
 

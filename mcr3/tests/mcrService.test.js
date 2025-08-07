@@ -31,14 +31,25 @@ describe('MCRService', () => {
   let mockStrategyManager;
   let mockStrategyExecutor;
 
+  // Mock the LLM provider to avoid actual LLM creation
+  jest.mock('../src/providers/llmProvider', () => ({
+      createLlm: jest.fn(() => ({})), // Return a dummy LLM object
+      getAvailableProviders: jest.fn(() => ['openai', 'gemini']),
+  }));
+
   beforeEach(() => {
     // Reset mocks before each test
     jest.clearAllMocks();
 
-    // Provide mock implementations for the services
-    mockStrategyManager = new StrategyManager();
-    mockStrategyManager.getActiveStrategy = jest.fn(() => ({ name: 'nl-to-fact' }));
-    mockStrategyManager.getStrategy = jest.fn((name) => ({ name }));
+    // Since StrategyManager is mocked, we can configure its mock instance
+    // The constructor will be called by MCRService, and we can grab the instance
+    StrategyManager.mockImplementation(() => {
+        return {
+            getActiveStrategy: jest.fn(() => ({ name: 'nl-to-fact' })),
+            getStrategy: jest.fn((name) => ({ name })),
+            rebuildStrategies: jest.fn(),
+        };
+    });
 
     mockStrategyExecutor = new StrategyExecutor();
     mockStrategyExecutor.execute = jest.fn((strategy, input) => Promise.resolve(`${strategy.name}(${input.input}).`));
@@ -46,9 +57,11 @@ describe('MCRService', () => {
     mcrService = new MCRService({
       reasoner,
       sessionStore,
-      strategyManager: mockStrategyManager,
       strategyExecutor: mockStrategyExecutor,
     });
+
+    // The instance of the mock strategy manager created inside MCRService
+    mockStrategyManager = mcrService.strategyManager;
   });
 
   describe('createSession', () => {
