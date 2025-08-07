@@ -42,6 +42,9 @@ class WebSocketHandler {
         case 'session.explain':
           result = await this.mcrService.explain(input.sessionId, input.prologRule);
           break;
+        case 'session.get_kb':
+          result = this.mcrService.getKnowledgeBase(input.sessionId);
+          break;
         case 'strategy.list':
           result = this.mcrService.listStrategies();
           break;

@@ -63,24 +63,31 @@ class MCRService {
     const session = this.sessionStore.getSession(sessionId);
     if (!session) throw new Error(`Session not found: ${sessionId}`);
 
-    // For querying, we often need a rule-based translation.
-    // We'll default to 'nl-to-rule' if available, otherwise the active strategy.
-    const defaultQueryStrategy = this.strategyManager.getStrategy('nl-to-rule')
-      ? 'nl-to-rule'
-      : this.strategyManager.activeStrategyName;
+    // 1. Translate NL to a Prolog query
+    const queryStrategy = this.strategyManager.getStrategy(strategyName || 'nl-to-rule') || this.strategyManager.getActiveStrategy();
+    if (!queryStrategy) throw new Error(`Could not determine a strategy for NL-to-Query translation.`);
 
-    const effectiveStrategyName = strategyName || defaultQueryStrategy;
-    const strategy = this.strategyManager.getStrategy(effectiveStrategyName);
+    const queryString = await this.strategyExecutor.execute(queryStrategy, { input: naturalLanguageInput });
 
-    if (!strategy) throw new Error(`Strategy not found: ${effectiveStrategyName}`);
-
-    const queryString = await this.strategyExecutor.execute(strategy, { input: naturalLanguageInput });
-
+    // 2. Execute the query in the reasoner
     await this.reasoner.query(session.reasonerSession, queryString);
-    const answers = await this.reasoner.getAnswers(session.reasonerSession);
+    const structuredAnswers = await this.reasoner.getAnswers(session.reasonerSession);
 
-    // TODO: Translate answers back to natural language
-    return { success: true, answers: answers.map(a => a.toString()), strategy: strategy.name };
+    // 3. Translate the structured answers back to natural language
+    const answerStrategy = this.strategyManager.getStrategy('answers-to-nl');
+    if (!answerStrategy) {
+      console.warn("The 'answers-to-nl' strategy is not available. Returning raw answers.");
+      return { success: true, answers: structuredAnswers.map(a => a.toString()), strategy: queryStrategy.name };
+    }
+
+    // The answers need to be formatted as a string for the prompt
+    const answersAsString = JSON.stringify(structuredAnswers.map(a => a.links));
+    const naturalLanguageAnswer = await this.strategyExecutor.execute(answerStrategy, {
+      query: naturalLanguageInput,
+      answers: answersAsString,
+    });
+
+    return { success: true, answer: naturalLanguageAnswer, strategy: queryStrategy.name };
   }
 
   async explain(sessionId, prologRule) {
@@ -93,6 +100,15 @@ class MCRService {
     const explanation = await this.strategyExecutor.execute(strategy, { input: prologRule });
 
     return { success: true, explanation, strategy: strategy.name };
+  }
+
+  getKnowledgeBase(sessionId) {
+    const session = this.sessionStore.getSession(sessionId);
+    if (!session) {
+      // To be consistent with tool_result format, we can return the error this way
+      return { success: false, error: `Session not found: ${sessionId}` };
+    }
+    return { success: true, kb: session.kb };
   }
 
   // --- Strategy Management ---

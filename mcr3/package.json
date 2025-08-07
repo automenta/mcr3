@@ -6,7 +6,8 @@
   "scripts": {
     "start": "node src/index.js",
     "dev": "nodemon src/index.js",
-    "test": "jest"
+    "test": "jest",
+    "tui": "node src/tui/index.js"
   },
   "keywords": [
     "ai",
@@ -24,7 +25,8 @@
     "dotenv": "^16.4.5",
     "express": "^4.19.2",
     "tau-prolog": "^0.3.3",
-    "ws": "^8.17.0"
+    "ws": "^8.17.0",
+    "neo-blessed": "0.2.0"
   },
   "devDependencies": {
     "jest": "^29.7.0",

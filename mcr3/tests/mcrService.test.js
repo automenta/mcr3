@@ -82,16 +82,47 @@ describe('MCRService', () => {
   });
 
   describe('query', () => {
-    test('should use the nl-to-rule strategy by default to query', async () => {
+    test('should translate NL->Prolog, get answers, and translate Prolog->NL', async () => {
       const input = 'is Socrates a man?';
-      const expectedProlog = 'nl-to-rule(is Socrates a man?).';
+      const prologQuery = 'nl_to_rule(is_socrates_a_man).';
+      // The mock reasoner returns substitutions with a 'links' property, which is what the service uses.
+      const structuredAnswers = [{ links: { X: 'test' } }];
+      const finalAnswer = "Yes, Socrates is a man.";
+
+      // Mock the strategy implementations for this specific test
+      mockStrategyManager.getStrategy.mockImplementation(name => {
+        if (name === 'nl-to-rule') return { name: 'nl-to-rule' };
+        if (name === 'answers-to-nl') return { name: 'answers-to-nl' };
+        return { name: 'some-default' };
+      });
+
+      mockStrategyExecutor.execute.mockImplementation(async (strategy, inputs) => {
+        if (strategy.name === 'nl-to-rule') return prologQuery;
+        if (strategy.name === 'answers-to-nl') return finalAnswer;
+        return 'default execution';
+      });
+
+      // Ensure the mock reasoner provides the expected answer structure
+      reasoner.getAnswers.mockResolvedValue(structuredAnswers);
 
       const result = await mcrService.query('mockSessionId', input);
 
+      // 1. Verify the NL -> Prolog step
       expect(mockStrategyManager.getStrategy).toHaveBeenCalledWith('nl-to-rule');
       expect(mockStrategyExecutor.execute).toHaveBeenCalledWith({ name: 'nl-to-rule' }, { input });
-      expect(reasoner.query).toHaveBeenCalledWith({ id: 'prologSession' }, expectedProlog);
-      expect(result.answers).toEqual(['X = test']);
+      expect(reasoner.query).toHaveBeenCalledWith({ id: 'prologSession' }, prologQuery);
+
+      // 2. Verify the Prolog -> NL step
+      expect(mockStrategyManager.getStrategy).toHaveBeenCalledWith('answers-to-nl');
+      const answersAsString = JSON.stringify(structuredAnswers.map(a => a.links));
+      expect(mockStrategyExecutor.execute).toHaveBeenCalledWith(
+        { name: 'answers-to-nl' },
+        { query: input, answers: answersAsString }
+      );
+
+      // 3. Verify the final result
+      expect(result.answer).toEqual(finalAnswer);
+      expect(result.answers).toBeUndefined(); // The old 'answers' property should be gone
     });
   });
 
