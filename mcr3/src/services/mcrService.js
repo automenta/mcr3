@@ -11,25 +11,48 @@ class MCRService {
     console.log('MCRService initialized');
   }
 
-  // Placeholder for session.assert
-  async assert(sessionId, naturalLanguageInput) {
-    console.log(`[MCRService] Asserting to session ${sessionId}: "${naturalLanguageInput}"`);
-    // 1. Get session
-    // 2. Get active strategy
-    // 3. Execute strategy (NL -> Logic)
-    // 4. Assert logic into reasoner session
-    return { success: true, message: "Assertion handled (placeholder)" };
+  /**
+   * Creates a new session.
+   * @returns {string} The ID of the new session.
+   */
+  createSession() {
+    const sessionId = this.sessionStore.createSession();
+    const reasonerSession = this.reasoner.createSession();
+    this.sessionStore.updateSession(sessionId, { reasonerSession });
+    return sessionId;
   }
 
-  // Placeholder for session.query
+  async assert(sessionId, naturalLanguageInput) {
+    const session = this.sessionStore.getSession(sessionId);
+    if (!session) {
+      throw new Error(`Session not found: ${sessionId}`);
+    }
+
+    const strategy = this.strategyManager.getActiveStrategy();
+    const prologCode = await strategy.execute(naturalLanguageInput);
+
+    await this.reasoner.consult(session.reasonerSession, prologCode);
+
+    const updatedKb = `${session.kb}\n${prologCode}`;
+    this.sessionStore.updateSession(sessionId, { kb: updatedKb });
+
+    return { success: true, asserted: prologCode };
+  }
+
   async query(sessionId, naturalLanguageInput) {
-    console.log(`[MCRService] Querying session ${sessionId}: "${naturalLanguageInput}"`);
-    // 1. Get session
-    // 2. Get active strategy
-    // 3. Execute strategy (NL -> Query)
-    // 4. Run query in reasoner session
-    // 5. Translate result back to NL
-    return { success: true, answer: "This is a placeholder answer." };
+    const session = this.sessionStore.getSession(sessionId);
+    if (!session) {
+      throw new Error(`Session not found: ${sessionId}`);
+    }
+
+    const strategy = this.strategyManager.getActiveStrategy();
+    const queryString = await strategy.execute(naturalLanguageInput);
+
+    await this.reasoner.query(session.reasonerSession, queryString);
+    const answers = await this.reasoner.getAnswers(session.reasonerSession);
+
+    // For now, return the raw Tau Prolog answers
+    return { success: true, answers: answers.map(a => a.toString()) };
   }
 }
 

@@ -6,6 +6,7 @@ require('dotenv').config();
 
 const WebSocketHandler = require('./api/websocketHandler');
 const MCRService = require('./services/mcrService');
+const StrategyManager = require('./services/strategyManager');
 const reasoner = require('./providers/prologReasoner');
 const sessionStore = require('./store/sessionStore');
 
@@ -17,7 +18,8 @@ const PORT = process.env.PORT || 8080;
 
 // --- Dependency Injection ---
 // Initialize the core services and handlers
-const mcrService = new MCRService({ reasoner, sessionStore });
+const strategyManager = new StrategyManager();
+const mcrService = new MCRService({ reasoner, sessionStore, strategyManager });
 const webSocketHandler = new WebSocketHandler(mcrService);
 
 // Serve the MCR Workbench UI static files
