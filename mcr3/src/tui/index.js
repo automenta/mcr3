@@ -62,42 +62,11 @@ const titleBox = blessed.box({
   left: 'center',
   width: '100%',
   height: 1,
-  content: '{bold}MCR3 TUI Client{/} | Commands: /assert, /query, /kb, /examples, /config, /quit',
+  content: '{bold}MCR3 TUI Client{/} | Commands: /assert, /query, /kb, /examples, /quit | Hotkeys: Ctrl-E for Examples',
   tags: true,
 });
 
 // --- UI Components (continued) ---
-
-// Config Form (initially hidden)
-const configForm = blessed.form({
-    parent: screen,
-    label: 'LLM Configuration',
-    left: 'center',
-    top: 'center',
-    width: '60%',
-    height: 10,
-    keys: true,
-    vi: true,
-    mouse: true,
-    border: 'line',
-    hidden: true,
-});
-
-const providerLabel = blessed.text({ parent: configForm, top: 1, left: 2, content: 'Provider:' });
-const providerInput = blessed.textbox({ parent: configForm, top: 1, left: 15, height: 1, width: '60%', border: 'line', name: 'provider' });
-
-const apiKeyLabel = blessed.text({ parent: configForm, top: 2, left: 2, content: 'API Key:' });
-const apiKeyInput = blessed.textbox({ parent: configForm, top: 2, left: 15, height: 1, width: '60%', border: 'line', name: 'apiKey', censor: true });
-
-const modelLabel = blessed.text({ parent: configForm, top: 3, left: 2, content: 'Model:' });
-const modelInput = blessed.textbox({ parent: configForm, top: 3, left: 15, height: 1, width: '60%', border: 'line', name: 'model' });
-
-const baseUrlLabel = blessed.text({ parent: configForm, top: 4, left: 2, content: 'Base URL:' });
-const baseUrlInput = blessed.textbox({ parent: configForm, top: 4, left: 15, height: 1, width: '60%', border: 'line', name: 'baseUrl' });
-
-const saveButton = blessed.button({ parent: configForm, bottom: 1, left: 5, width: 10, height: 1, content: 'Save', name: 'save', style: { bg: 'green' }, mouse: true });
-const cancelButton = blessed.button({ parent: configForm, bottom: 1, right: 5, width: 10, height: 1, content: 'Cancel', name: 'cancel', style: { bg: 'red' }, mouse: true });
-
 
 // Examples List (initially hidden)
 const examplesList = blessed.list({
@@ -297,26 +266,17 @@ function onWsMessage(data) {
             const { tool_name } = originalRequest;
             if (payload.success) {
                 log(`{green-fg}Response for ${tool_name}:{/}`, 'response');
-                if (tool_name === 'llm.getConfig') {
-                    const { provider, options } = payload.config;
-                    providerInput.setValue(provider || '');
-                    apiKeyInput.setValue(options.apiKey || '');
-                    modelInput.setValue(options.model || '');
-                    baseUrlInput.setValue(options.baseUrl || options.baseURL || '');
-                    configForm.show();
-                    configForm.focus();
-                    screen.render();
-                } else if (tool_name === 'session.create') {
+                if (tool_name === 'session.create') {
                     sessionId = payload.sessionId;
                     log(`  Session created: ${sessionId}`);
                     sendMessage('session.get_kb', { sessionId }); // Initial KB load
                 } else if (tool_name === 'session.assert') {
-                    const asserted = payload.asserted;
-                    const summary = `Asserted: ${asserted.substring(0, 80)}...`;
-                    log({ summary, full: asserted }, 'response');
-                    sendMessage('session.get_kb', { sessionId }); // Refresh KB view
+                    const { addedFacts, fullKnowledgeBase } = payload;
+                    const summary = `Asserted: ${addedFacts.join(' ')}`;
+                    log({ summary, full: addedFacts.join('\n') }, 'response');
+                    updateKb(fullKnowledgeBase); // Update KB with the full new KB
                 } else if (tool_name === 'session.query') {
-                    const answer = payload.answer;
+                    const { answer } = payload;
                     const summary = `Answer: ${answer.substring(0, 80)}...`;
                     log({ summary, full: answer }, 'response');
                 } else if (tool_name === 'session.get_kb') {
@@ -375,88 +335,61 @@ mainLog.on('select', (item, index) => {
 });
 
 // --- User Input Handling ---
-inputBox.on('submit', (text) => {
+function handleCommand(text) {
     const trimmedText = text.trim();
-  if (!trimmedText) {
-      inputBox.clearValue();
-      inputBox.focus();
-      screen.render();
-      return;
-  }
+    if (!trimmedText) {
+        inputBox.clearValue();
+        inputBox.focus();
+        screen.render();
+        return;
+    }
 
-  if (!sessionId) {
-    log('{yellow-fg}Not connected to a session yet. Please wait.{/}');
+    if (!sessionId) {
+        log('{yellow-fg}Not connected to a session yet. Please wait.{/}');
+        inputBox.clearValue();
+        return;
+    }
+
+    log(`{blue-fg}YOU: ${text}{/}`);
+
+    if (history[history.length - 1] !== text) {
+        history.push(text);
+    }
+    historyIndex = history.length;
+
+    const [command, ...args] = trimmedText.split(' ');
+    const restOfText = args.join(' ');
+
+    switch (command.toLowerCase()) {
+        case '/assert':
+            sendMessage('session.assert', { sessionId, naturalLanguageText: restOfText });
+            break;
+        case '/query':
+            sendMessage('session.query', { sessionId, naturalLanguageQuestion: restOfText });
+            break;
+        case '/kb':
+            sendMessage('session.get_kb', { sessionId });
+            break;
+        case '/examples':
+            examplesList.show();
+            examplesList.focus();
+            break;
+        case '/quit':
+            saveHistory();
+            ws.close();
+            setTimeout(() => process.exit(0), 100);
+            break;
+        default:
+            log('{yellow-fg}Unknown command. Available: /assert, /query, /kb, /examples, /quit{/}');
+    }
+
     inputBox.clearValue();
-    return;
-  }
-
-  log(`{blue-fg}YOU: ${text}{/}`);
-
-  if (history[history.length - 1] !== text) {
-      history.push(text);
-  }
-  historyIndex = history.length;
-
-
-  const [command, ...args] = trimmedText.split(' ');
-  const restOfText = args.join(' ');
-
-  switch (command.toLowerCase()) {
-    case '/assert':
-      sendMessage('session.assert', { sessionId, naturalLanguageInput: restOfText });
-      break;
-    case '/query':
-      sendMessage('session.query', { sessionId, naturalLanguageInput: restOfText });
-      break;
-    case '/kb':
-      sendMessage('session.get_kb', { sessionId });
-      break;
-    case '/examples':
-        examplesList.show();
-        examplesList.focus();
-        break;
-    case '/config':
-        sendMessage('llm.getConfig', {});
-        break;
-    case '/quit':
-      saveHistory();
-      ws.close();
-      setTimeout(() => process.exit(0), 100);
-      break;
-    default:
-      log('{yellow-fg}Unknown command. Available: /assert, /query, /kb, /examples, /config, /quit{/}');
-  }
-
-  inputBox.clearValue();
-  inputBox.focus();
-  screen.render();
-});
-
-cancelButton.on('press', () => {
-    configForm.hide();
     inputBox.focus();
     screen.render();
-});
+}
 
-saveButton.on('press', () => {
-    configForm.submit();
-});
-
-configForm.on('submit', (data) => {
-    const config = {
-        provider: data.provider,
-        options: {
-            apiKey: data.apiKey,
-            model: data.model,
-            baseUrl: data.baseUrl,
-            // langChain uses baseURL for openai
-            baseURL: data.baseUrl,
-        }
-    };
-    sendMessage('llm.setConfig', config);
-    configForm.hide();
-    inputBox.focus();
-    screen.render();
+inputBox.on('submit', (text) => {
+    handleCommand(text);
 });
 
 inputBox.key(['up', 'down'], (ch, key) => {
@@ -481,11 +414,11 @@ inputBox.key(['up', 'down'], (ch, key) => {
 
 examplesList.on('select', (item, index) => {
     const selectedExample = examples[index];
-    if (selectedExample) {
-        inputBox.setValue(selectedExample.command);
-    }
     examplesList.hide();
     inputBox.focus();
+    if (selectedExample) {
+        handleCommand(selectedExample.command);
+    }
     screen.render();
 });
 
@@ -497,6 +430,11 @@ examplesList.key(['escape'], () => {
 
 
 // --- Global Key Handlers ---
+screen.key(['C-e'], () => {
+    examplesList.show();
+    examplesList.focus();
+});
+
 screen.key(['escape', 'q', 'C-c'], () => {
   saveHistory();
   ws.close();
