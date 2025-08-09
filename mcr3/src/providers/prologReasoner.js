@@ -1,4 +1,5 @@
 const pl = require('tau-prolog');
+const { PrologError } = require('../errors');
 
 /**
  * A wrapper around tau-prolog to provide a consistent interface for reasoning.
@@ -53,8 +54,11 @@ class PrologReasoner {
     return new Promise(async (resolve) => {
       const answers = [];
       let answer;
+      // The loop continues as long as there are more answers.
+      // session.answer() resolves to false when there are no more solutions.
       while ((answer = await this.answer(session))) {
-        if (pl.is_substitution(answer)) {
+        // Check if the answer is a substitution (i.e., a solution with variable bindings)
+        if (answer instanceof pl.type.Substitution) {
           answers.push(answer);
         }
       }
@@ -77,10 +81,12 @@ class PrologReasoner {
   }
 
   /**
-   * Formats a tau-prolog error into a readable string.
+   * Formats a tau-prolog error into a PrologError object.
    */
   parseError(err) {
-    return `Prolog Error: ${err.toString()}`;
+    // err is a Tau Prolog error object. We'll extract the message.
+    const message = err.toString();
+    return new PrologError(message, err);
   }
 }
 

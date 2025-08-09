@@ -1,6 +1,11 @@
 const fs = require('fs');
 const path = require('path');
 const { createLlm, getAvailableProviders } = require('../providers/llmProvider');
+const {
+  SessionNotFoundError,
+  InvalidInputError,
+  StrategyNotFoundError,
+} = require('../errors');
 const StrategyManager = require('./strategyManager');
 
 /**
@@ -72,16 +77,16 @@ class MCRService {
 
   async assert(sessionId, naturalLanguageInput, strategyName) {
     if (!naturalLanguageInput || typeof naturalLanguageInput !== 'string') {
-      throw new Error('Invalid input: naturalLanguageInput must be a non-empty string.');
+      throw new InvalidInputError('Invalid input: naturalLanguageInput must be a non-empty string.');
     }
     const session = this.sessionStore.getSession(sessionId);
-    if (!session) throw new Error(`Session not found: ${sessionId}`);
+    if (!session) throw new SessionNotFoundError(sessionId);
 
     const strategy = strategyName
       ? this.strategyManager.getStrategy(strategyName)
       : this.strategyManager.getStrategy('nl-to-fact'); // Sensible default
 
-    if (!strategy) throw new Error(`Strategy not found: ${strategyName || 'nl-to-fact'}`);
+    if (!strategy) throw new StrategyNotFoundError(strategyName || 'nl-to-fact');
 
     const prologCode = await this.strategyExecutor.execute(strategy, { input: naturalLanguageInput });
 
@@ -96,16 +101,86 @@ class MCRService {
     return { success: true, asserted: assertions, strategy: strategy.name };
   }
 
-  async query(sessionId, naturalLanguageInput, strategyName) {
+  async retract(sessionId, naturalLanguageInput, strategyName) {
     if (!naturalLanguageInput || typeof naturalLanguageInput !== 'string') {
-      throw new Error('Invalid input: naturalLanguageInput must be a non-empty string.');
+      throw new InvalidInputError('Invalid input: naturalLanguageInput must be a non-empty string.');
     }
     const session = this.sessionStore.getSession(sessionId);
-    if (!session) throw new Error(`Session not found: ${sessionId}`);
+    if (!session) throw new SessionNotFoundError(sessionId);
+
+    const strategy = this.strategyManager.getStrategy(strategyName || 'nl-to-retract');
+    if (!strategy) throw new StrategyNotFoundError(strategyName || 'nl-to-retract');
+
+    // 1. Translate NL to a Prolog retract query
+    const retractQuery = await this.strategyExecutor.execute(strategy, { input: naturalLanguageInput });
+
+    // 2. Execute the retract query
+    await this.reasoner.query(session.reasonerSession, retractQuery);
+
+    // 3. Tau-prolog doesn't easily expose the full KB, so we need to rebuild it.
+    // For now, we will just remove the line from the KB string if it exists.
+    // This is a simplification and may not handle all cases perfectly (e.g., retractall).
+    const kbLines = session.kb.split('\n');
+    // This is a simplistic approach: it assumes the retracted fact is literally in the string.
+    const factToRemove = retractQuery.replace(/^retract\((.*)\)\.$/, '$1');
+    const updatedKbLines = kbLines.filter(line => line.trim() !== factToRemove.trim());
+    const updatedKb = updatedKbLines.join('\n');
+
+    this.sessionStore.updateSession(sessionId, { kb: updatedKb });
+
+    return { success: true, retracted: retractQuery, strategy: strategy.name };
+  }
+
+  async assertAndQuery(sessionId, naturalLanguageInput, strategyName) {
+    if (!naturalLanguageInput || typeof naturalLanguageInput !== 'string') {
+      throw new InvalidInputError('Invalid input: naturalLanguageInput must be a non-empty string.');
+    }
+    const session = this.sessionStore.getSession(sessionId);
+    if (!session) throw new SessionNotFoundError(sessionId);
+
+    const strategy = this.strategyManager.getStrategy(strategyName || 'nl-assert-and-query');
+    if (!strategy) throw new StrategyNotFoundError(strategyName || 'nl-assert-and-query');
+
+    // 1. Get the assertion and query from the LLM
+    const { assertion, query } = await this.strategyExecutor.execute(strategy, { input: naturalLanguageInput });
+
+    // 2. Create a temporary, isolated reasoning session
+    const tempReasonerSession = this.reasoner.createSession();
+
+    // 3. Load the original KB and the new assertion into the temp session
+    await this.reasoner.consult(tempReasonerSession, session.kb);
+    await this.reasoner.consult(tempReasonerSession, assertion);
+
+    // 4. Execute the query in the temporary session
+    await this.reasoner.query(tempReasonerSession, query);
+    const structuredAnswers = await this.reasoner.getAnswers(tempReasonerSession);
+
+    // 5. Translate the structured answers back to natural language
+    const answerStrategy = this.strategyManager.getStrategy('answers-to-nl');
+    if (!answerStrategy) {
+      console.warn("The 'answers-to-nl' strategy is not available. Returning raw answers.");
+      return { success: true, answers: structuredAnswers.map(a => a.toString()), strategy: strategy.name };
+    }
+
+    const answersAsString = JSON.stringify(structuredAnswers.map(a => a.links));
+    const naturalLanguageAnswer = await this.strategyExecutor.execute(answerStrategy, {
+      query: naturalLanguageInput, // The original NL question
+      answers: answersAsString,
+    });
+
+    return { success: true, answer: naturalLanguageAnswer, strategy: strategy.name };
+  }
+
+  async query(sessionId, naturalLanguageInput, strategyName) {
+    if (!naturalLanguageInput || typeof naturalLanguageInput !== 'string') {
+      throw new InvalidInputError('Invalid input: naturalLanguageInput must be a non-empty string.');
+    }
+    const session = this.sessionStore.getSession(sessionId);
+    if (!session) throw new SessionNotFoundError(sessionId);
 
     // 1. Translate NL to a Prolog query
     const queryStrategy = this.strategyManager.getStrategy(strategyName || 'nl-to-query');
-    if (!queryStrategy) throw new Error(`Could not find a suitable strategy for NL-to-Query translation. Looked for: ${strategyName || 'nl-to-query'}`);
+    if (!queryStrategy) throw new StrategyNotFoundError(strategyName || 'nl-to-query');
 
     const queryString = await this.strategyExecutor.execute(queryStrategy, { input: naturalLanguageInput });
 
@@ -132,10 +207,10 @@ class MCRService {
 
   async explain(sessionId, prologRule) {
     const session = this.sessionStore.getSession(sessionId);
-    if (!session) throw new Error(`Session not found: ${sessionId}`);
+    if (!session) throw new SessionNotFoundError(sessionId);
 
     const strategy = this.strategyManager.getStrategy('rules-to-nl');
-    if (!strategy) throw new Error(`The 'rules-to-nl' strategy is not available.`);
+    if (!strategy) throw new StrategyNotFoundError('rules-to-nl');
 
     const explanation = await this.strategyExecutor.execute(strategy, { input: prologRule });
 
@@ -144,10 +219,10 @@ class MCRService {
 
   async critiqueAndRefine(sessionId, naturalLanguageInput, strategyName) {
     const session = this.sessionStore.getSession(sessionId);
-    if (!session) throw new Error(`Session not found: ${sessionId}`);
+    if (!session) throw new SessionNotFoundError(sessionId);
 
     const strategy = this.strategyManager.getStrategy(strategyName || 'critique-and-refine-rule');
-    if (!strategy) throw new Error(`Could not find a suitable strategy for critique-and-refine. Looked for: ${strategyName || 'critique-and-refine-rule'}`);
+    if (!strategy) throw new StrategyNotFoundError(strategyName || 'critique-and-refine-rule');
 
     const refinedRule = await this.strategyExecutor.execute(strategy, { input: naturalLanguageInput });
 
@@ -156,10 +231,10 @@ class MCRService {
 
   async explainQueryTrace(sessionId, query, trace) {
     const session = this.sessionStore.getSession(sessionId);
-    if (!session) throw new Error(`Session not found: ${sessionId}`);
+    if (!session) throw new SessionNotFoundError(sessionId);
 
     const strategy = this.strategyManager.getStrategy('query-trace-to-nl');
-    if (!strategy) throw new Error(`The 'query-trace-to-nl' strategy is not available.`);
+    if (!strategy) throw new StrategyNotFoundError('query-trace-to-nl');
 
     const { kb } = session;
     const explanation = await this.strategyExecutor.execute(strategy, {
@@ -173,39 +248,10 @@ class MCRService {
 
   async generateTestCases(sessionId, rule) {
     const session = this.sessionStore.getSession(sessionId);
-    if (!session) throw new Error(`Session not found: ${sessionId}`);
+    if (!session) throw new SessionNotFoundError(sessionId);
 
     const strategy = this.strategyManager.getStrategy('generate-test-cases');
-    if (!strategy) throw new Error(`The 'generate-test-cases' strategy is not available.`);
-
-    const testCases = await this.strategyExecutor.execute(strategy, { rule });
-
-    return { success: true, testCases, strategy: strategy.name };
-  }
-
-  async explainQueryTrace(sessionId, query, trace) {
-    const session = this.sessionStore.getSession(sessionId);
-    if (!session) throw new Error(`Session not found: ${sessionId}`);
-
-    const strategy = this.strategyManager.getStrategy('query-trace-to-nl');
-    if (!strategy) throw new Error(`The 'query-trace-to-nl' strategy is not available.`);
-
-    const { kb } = session;
-    const explanation = await this.strategyExecutor.execute(strategy, {
-      knowledge_base: kb,
-      query,
-      trace,
-    });
-
-    return { success: true, explanation, strategy: strategy.name };
-  }
-
-  async generateTestCases(sessionId, rule) {
-    const session = this.sessionStore.getSession(sessionId);
-    if (!session) throw new Error(`Session not found: ${sessionId}`);
-
-    const strategy = this.strategyManager.getStrategy('generate-test-cases');
-    if (!strategy) throw new Error(`The 'generate-test-cases' strategy is not available.`);
+    if (!strategy) throw new StrategyNotFoundError('generate-test-cases');
 
     const testCases = await this.strategyExecutor.execute(strategy, { rule });
 
@@ -255,11 +301,9 @@ class MCRService {
   }
 
   setActiveStrategy(name) {
+    // The strategyManager throws a StrategyNotFoundError, so we just let it bubble up.
     const success = this.strategyManager.setActiveStrategy(name);
-    if (!success) {
-      throw new Error(`Strategy not found: ${name}`);
-    }
-    return { success: true, activeStrategy: name };
+    return { success, activeStrategy: name };
   }
 
   getActiveStrategy() {

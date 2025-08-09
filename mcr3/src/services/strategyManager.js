@@ -6,11 +6,11 @@ const { StrategyLoadError, StrategyNotFoundError } = require('../errors');
  * Manages the loading and retrieval of translation strategies.
  */
 class StrategyManager {
-  constructor(initialLlm) {
+  constructor(initialLlm, { specificFiles = null } = {}) {
     this.strategies = new Map();
     this.activeStrategyName = null;
     this.llm = initialLlm;
-    this.loadStrategies();
+    this.loadStrategies(specificFiles);
   }
 
   rebuildStrategies(newLlm) {
@@ -21,14 +21,14 @@ class StrategyManager {
     this.loadStrategies();
   }
 
-  loadStrategies() {
+  loadStrategies(specificFiles = null) {
     const strategiesDir = path.join(__dirname, '..', '..', 'strategies');
     if (!fs.existsSync(strategiesDir)) {
       console.warn('Strategies directory not found. No strategies loaded.');
       return;
     }
 
-    const strategyFiles = fs.readdirSync(strategiesDir).filter(file => file.endsWith('.js'));
+    const strategyFiles = specificFiles || fs.readdirSync(strategiesDir).filter(file => file.endsWith('.js'));
 
     for (const file of strategyFiles) {
       try {

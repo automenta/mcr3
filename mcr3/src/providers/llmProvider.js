@@ -44,7 +44,18 @@ function createLlm(providerName, options = {}) {
   // variables if not provided in the config object. We will rely on that as a fallback.
   // Example: new ChatOpenAI({ apiKey: '...' }) or just new ChatOpenAI() if OPENAI_API_KEY is set.
 
-  return new LlmClass(config);
+  const llm = new LlmClass(config);
+
+  // Add a retry mechanism for common transient network errors.
+  // This will retry up to 2 times (3 total attempts) if the LLM API
+  // returns one of these specific HTTP status codes.
+  return llm.withRetry({
+    stopAfterAttempt: 3,
+    retryOn: (err) => {
+      const transientErrorCodes = [429, 502, 503, 504];
+      return err.status && transientErrorCodes.includes(err.status);
+    },
+  });
 }
 
 /**
