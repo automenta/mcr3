@@ -48,50 +48,64 @@ class MCRService {
   async createSession() {
     const sessionId = this.sessionStore.createSession();
     const reasonerSession = this.reasoner.createSession();
+    this.sessionStore.updateSession(sessionId, { reasonerSession, kb: '' });
 
     // Seed the session with a default ontology
     try {
-      const ontologyPath = path.join(__dirname, '..', 'ontologies', 'family.pl');
-      const ontology = fs.readFileSync(ontologyPath, 'utf8');
-      await this.reasoner.consult(reasonerSession, ontology);
-      this.sessionStore.updateSession(sessionId, { reasonerSession, kb: ontology });
-      console.log(`Session ${sessionId} seeded with default ontology.`);
+      const ontologyPath = path.join(__dirname, '..', '..', 'ontologies', 'family.pl');
+      if (fs.existsSync(ontologyPath)) {
+        const ontology = fs.readFileSync(ontologyPath, 'utf8');
+        await this.reasoner.consult(reasonerSession, ontology);
+        this.sessionStore.updateSession(sessionId, { kb: ontology });
+        console.log(`Session ${sessionId} seeded with default ontology.`);
+      } else {
+        console.warn(`Default ontology 'family.pl' not found. Session created with an empty knowledge base.`);
+      }
     } catch (error) {
-      console.error(`Could not seed session ${sessionId} with default ontology:`, error);
-      // Still create the session, just without the seeded knowledge
-      this.sessionStore.updateSession(sessionId, { reasonerSession });
+      // If seeding fails, we still have a valid session, but we should log it.
+      console.error(`Error seeding session ${sessionId} with default ontology:`, error);
+      // We don't throw here, as a session with an empty KB is still a valid state.
     }
 
     return sessionId;
   }
 
   async assert(sessionId, naturalLanguageInput, strategyName) {
+    if (!naturalLanguageInput || typeof naturalLanguageInput !== 'string') {
+      throw new Error('Invalid input: naturalLanguageInput must be a non-empty string.');
+    }
     const session = this.sessionStore.getSession(sessionId);
     if (!session) throw new Error(`Session not found: ${sessionId}`);
 
     const strategy = strategyName
       ? this.strategyManager.getStrategy(strategyName)
-      : this.strategyManager.getActiveStrategy();
+      : this.strategyManager.getStrategy('nl-to-fact'); // Sensible default
 
-    if (!strategy) throw new Error(`Strategy not found: ${strategyName || 'active'}`);
+    if (!strategy) throw new Error(`Strategy not found: ${strategyName || 'nl-to-fact'}`);
 
     const prologCode = await this.strategyExecutor.execute(strategy, { input: naturalLanguageInput });
 
-    await this.reasoner.consult(session.reasonerSession, prologCode);
+    // Handle strategies that might return arrays (like nl-to-multi-fact)
+    const assertions = Array.isArray(prologCode) ? prologCode.join('\n') : prologCode;
 
-    const updatedKb = session.kb ? `${session.kb}\n${prologCode}` : prologCode;
+    await this.reasoner.consult(session.reasonerSession, assertions);
+
+    const updatedKb = session.kb ? `${session.kb}\n${assertions}` : assertions;
     this.sessionStore.updateSession(sessionId, { kb: updatedKb });
 
-    return { success: true, asserted: prologCode, strategy: strategy.name };
+    return { success: true, asserted: assertions, strategy: strategy.name };
   }
 
   async query(sessionId, naturalLanguageInput, strategyName) {
+    if (!naturalLanguageInput || typeof naturalLanguageInput !== 'string') {
+      throw new Error('Invalid input: naturalLanguageInput must be a non-empty string.');
+    }
     const session = this.sessionStore.getSession(sessionId);
     if (!session) throw new Error(`Session not found: ${sessionId}`);
 
     // 1. Translate NL to a Prolog query
-    const queryStrategy = this.strategyManager.getStrategy(strategyName || 'nl-to-rule') || this.strategyManager.getActiveStrategy();
-    if (!queryStrategy) throw new Error(`Could not determine a strategy for NL-to-Query translation.`);
+    const queryStrategy = this.strategyManager.getStrategy(strategyName || 'nl-to-query');
+    if (!queryStrategy) throw new Error(`Could not find a suitable strategy for NL-to-Query translation. Looked for: ${strategyName || 'nl-to-query'}`);
 
     const queryString = await this.strategyExecutor.execute(queryStrategy, { input: naturalLanguageInput });
 
@@ -126,6 +140,18 @@ class MCRService {
     const explanation = await this.strategyExecutor.execute(strategy, { input: prologRule });
 
     return { success: true, explanation, strategy: strategy.name };
+  }
+
+  async critiqueAndRefine(sessionId, naturalLanguageInput, strategyName) {
+    const session = this.sessionStore.getSession(sessionId);
+    if (!session) throw new Error(`Session not found: ${sessionId}`);
+
+    const strategy = this.strategyManager.getStrategy(strategyName || 'critique-and-refine-rule');
+    if (!strategy) throw new Error(`Could not find a suitable strategy for critique-and-refine. Looked for: ${strategyName || 'critique-and-refine-rule'}`);
+
+    const refinedRule = await this.strategyExecutor.execute(strategy, { input: naturalLanguageInput });
+
+    return { success: true, refinedRule, strategy: strategy.name };
   }
 
   getKnowledgeBase(sessionId) {

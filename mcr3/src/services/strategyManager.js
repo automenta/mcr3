@@ -34,7 +34,7 @@ class StrategyManager {
    * Loads all strategy modules from the strategies directory.
    */
   loadStrategies() {
-    const strategiesDir = path.join(__dirname, '..', 'strategies');
+    const strategiesDir = path.join(__dirname, '..', '..', 'strategies');
     if (!fs.existsSync(strategiesDir)) {
       console.warn('Strategies directory not found. No strategies loaded.');
       return;

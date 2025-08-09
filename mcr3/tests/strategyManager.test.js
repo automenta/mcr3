@@ -4,10 +4,10 @@ const StrategyManager = require('../src/services/strategyManager');
 
 // Mock the LLM provider
 jest.mock('../src/providers/llmProvider', () => ({
-  getLlm: jest.fn(() => ({})), // Return a dummy LLM object
+  createLlm: jest.fn(() => ({ pipe: jest.fn(), invoke: jest.fn(), withConfig: jest.fn() })), // Return a dummy LLM object
 }));
 
-const strategiesDir = path.join(__dirname, '..', 'src', 'strategies');
+const strategiesDir = path.join(__dirname, '..', 'strategies');
 let dirExisted = true;
 
 // Create mock strategy files for testing

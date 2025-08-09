@@ -84,4 +84,4 @@ class PrologReasoner {
   }
 }
 
-module.exports = new PrologReasoner(); // Export a singleton instance
+module.exports = PrologReasoner;

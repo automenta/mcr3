@@ -45,6 +45,9 @@ class WebSocketHandler {
         case 'session.get_kb':
           result = this.mcrService.getKnowledgeBase(input.sessionId);
           break;
+        case 'session.critiqueAndRefine':
+          result = await this.mcrService.critiqueAndRefine(input.sessionId, input.naturalLanguageInput, input.strategyName);
+          break;
         case 'strategy.list':
           result = this.mcrService.listStrategies();
           break;
@@ -77,8 +80,10 @@ class WebSocketHandler {
       }));
 
     } catch (error) {
-      console.error('Failed to handle message:', error);
-      ws.send(JSON.stringify({ type: 'error', message: error.message || 'Invalid message format' }));
+      console.error(`Failed to handle message: ${JSON.stringify(message, null, 2)}`, error);
+      // Echo back the messageId if it exists, for better client-side tracking.
+      const messageId = message.messageId || null;
+      ws.send(JSON.stringify({ type: 'tool_result', messageId, payload: { success: false, error: error.message || 'An unexpected error occurred.' } }));
     }
   }
 

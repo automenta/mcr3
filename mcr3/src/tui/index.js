@@ -62,7 +62,7 @@ const titleBox = blessed.box({
   left: 'center',
   width: '100%',
   height: 1,
-  content: '{bold}MCR3 TUI Client{/} | Commands: /assert, /query, /kb, /examples, /quit | Hotkeys: Ctrl-E for Examples',
+  content: '{bold}MCR3 TUI Client{/} | /help for commands | Ctrl-E for Examples',
   tags: true,
 });
 
@@ -271,10 +271,10 @@ function onWsMessage(data) {
                     log(`  Session created: ${sessionId}`);
                     sendMessage('session.get_kb', { sessionId }); // Initial KB load
                 } else if (tool_name === 'session.assert') {
-                    const { addedFacts, fullKnowledgeBase } = payload;
-                    const summary = `Asserted: ${addedFacts.join(' ')}`;
-                    log({ summary, full: addedFacts.join('\n') }, 'response');
-                    updateKb(fullKnowledgeBase); // Update KB with the full new KB
+                    const { asserted, strategy } = payload;
+                    const summary = `Asserted using ${strategy}: ${asserted}`;
+                    log({ summary, full: asserted }, 'response');
+                    sendMessage('session.get_kb', { sessionId });
                 } else if (tool_name === 'session.query') {
                     const { answer } = payload;
                     const summary = `Answer: ${answer.substring(0, 80)}...`;
@@ -335,6 +335,57 @@ mainLog.on('select', (item, index) => {
 });
 
 // --- User Input Handling ---
+const commands = {
+    '/assert': {
+        description: 'Assert a fact or rule in natural language. Usage: /assert <natural language statement>',
+        action: (args) => sendMessage('session.assert', { sessionId, naturalLanguageInput: args }),
+    },
+    '/query': {
+        description: 'Ask a question in natural language. Usage: /query <natural language question>',
+        action: (args) => sendMessage('session.query', { sessionId, naturalLanguageInput: args }),
+    },
+    '/kb': {
+        description: 'View the current knowledge base.',
+        action: () => sendMessage('session.get_kb', { sessionId }),
+    },
+    '/strategy': {
+        description: 'Manage strategies. Usage: /strategy list | /strategy set <name>',
+        action: (args) => {
+            const [subcommand, ...rest] = args.split(' ');
+            if (subcommand === 'list') {
+                sendMessage('strategy.list', {});
+            } else if (subcommand === 'set' && rest.length > 0) {
+                sendMessage('strategy.setActive', { name: rest.join(' ') });
+            } else {
+                log('{yellow-fg}Usage: /strategy list | /strategy set <name>{/}');
+            }
+        }
+    },
+    '/examples': {
+        description: 'Show a list of example commands.',
+        action: () => {
+            examplesList.show();
+            examplesList.focus();
+        }
+    },
+    '/help': {
+        description: 'Show this help message.',
+        action: () => {
+            const helpText = Object.entries(commands).map(([cmd, { description }]) => `{bold}${cmd}{/}: ${description}`).join('\n');
+            log({ summary: 'Available Commands:', full: helpText });
+        }
+    },
+    '/quit': {
+        description: 'Exit the TUI.',
+        action: () => {
+            saveHistory();
+            ws.close();
+            setTimeout(() => process.exit(0), 100);
+        }
+    }
+};
+
+
 function handleCommand(text) {
     const trimmedText = text.trim();
     if (!trimmedText) {
@@ -359,28 +410,12 @@ function handleCommand(text) {
 
     const [command, ...args] = trimmedText.split(' ');
     const restOfText = args.join(' ');
+    const commandHandler = commands[command.toLowerCase()];
 
-    switch (command.toLowerCase()) {
-        case '/assert':
-            sendMessage('session.assert', { sessionId, naturalLanguageText: restOfText });
-            break;
-        case '/query':
-            sendMessage('session.query', { sessionId, naturalLanguageQuestion: restOfText });
-            break;
-        case '/kb':
-            sendMessage('session.get_kb', { sessionId });
-            break;
-        case '/examples':
-            examplesList.show();
-            examplesList.focus();
-            break;
-        case '/quit':
-            saveHistory();
-            ws.close();
-            setTimeout(() => process.exit(0), 100);
-            break;
-        default:
-            log('{yellow-fg}Unknown command. Available: /assert, /query, /kb, /examples, /quit{/}');
+    if (commandHandler) {
+        commandHandler.action(restOfText);
+    } else {
+        log(`{yellow-fg}Unknown command. Type /help for a list of commands.{/}`);
     }
 
     inputBox.clearValue();

@@ -21,13 +21,13 @@
   "dependencies": {
     "@langchain/community": "^0.3.50",
     "@langchain/google-genai": "^0.2.16",
-    "@langchain/openai": "^0.6.4",
+    "@langchain/openai": "^0.6.7",
+    "cli-highlight": "^2.1.11",
     "dotenv": "^16.4.5",
     "express": "^4.19.2",
-    "tau-prolog": "^0.3.3",
-    "ws": "^8.17.0",
     "neo-blessed": "0.2.0",
-    "cli-highlight": "^2.1.11"
+    "tau-prolog": "^0.3.3",
+    "ws": "^8.17.0"
   },
   "devDependencies": {
     "jest": "^29.7.0",

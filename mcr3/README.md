@@ -29,7 +29,7 @@ This combination unlocks a new class of more robust, explainable, and sophistica
 
 4.  **Translation Strategies**: The methodology for converting natural language into logic is defined by **Translation Strategies**. These are configurable, pluggable pipelines that define how to prompt an LLM and process its output. In `mcr3`, these strategies are implemented using **`langchain.js`**, allowing for sophisticated, multi-step reasoning chains.
 
-5.  **MCR Workbench**: A comprehensive, web-based Single Page Application (SPA) that serves as the primary user interface for interacting with MCR. It provides modes for interactive reasoning, system analysis, and managing the Evolution Engine.
+5.  **Terminal User Interface (TUI)**: MCR is operated through a powerful and intuitive terminal-based interface, providing direct access to its reasoning capabilities.
 
 6.  **WebSocket-First API**: All core server interactions happen via a real-time WebSocket API, enabling features like live updates to a session's Knowledge Base and streaming responses.
 
@@ -39,80 +39,11 @@ This combination unlocks a new class of more robust, explainable, and sophistica
 -   **WebSocket-First API**: A real-time, bidirectional API for all core operations.
 -   **`tau-prolog` Integration**: Leverages the power of `tau-prolog`, a fully-featured Prolog interpreter written in JavaScript, for all symbolic reasoning.
 -   **`langchain.js` Powered**: Uses `langchain.js` for sophisticated LLM interactions, including prompt management, output parsing, and the creation of complex reasoning chains using LangChain Expression Language (LCEL).
--   **MCR Workbench UI**: A rich Single Page Application for all user interaction, including session management, system analysis, and control of the Evolution Engine.
+-   **Terminal User Interface (TUI)**: A powerful and intuitive terminal-based interface for all user interaction, including session management and system analysis.
 -   **Stateful, Persistent Sessions**: Supports both in-memory and file-based session storage, allowing knowledge bases to persist across server restarts.
 -   **Extensible LLM Support**: Pluggable architecture for supporting various LLM providers (OpenAI, Gemini, Ollama, etc.).
 -   **Automated Evolution Engine**: A self-optimizing system that autonomously discovers, evaluates, and refines translation strategies to continuously improve performance.
 -   **MCP Integration**: Ready to serve as a reasoning tool for AI clients that support the Model Context Protocol.
-
-## 🏛️ System Architecture
-
-The MCR architecture is designed for modularity and separation of concerns.
-
--   **Presentation Layer**: Any client that consumes the API (e.g., the MCR Workbench, a custom script).
--   **API Layer**: The WebSocket message handlers that define the public contract for interacting with MCR.
--   **Service Layer**: The core orchestrator (`mcrService.js`) that manages session state and executes requests by invoking the appropriate services and strategies.
--   **Strategy & Execution Layer**: This layer, powered by `langchain.js`, is responsible for executing **Translation Strategies**. The `StrategyExecutor` uses LCEL chains to manage the interaction between prompts, LLMs, and output parsers.
--   **Provider Layer**: Concrete implementations for external services, including LLM Providers (`Ollama`, `Gemini`, etc.) and the `PrologReasoner` (interfacing with `tau-prolog`).
-
-```mermaid
-graph TD
-    subgraph User Facing
-        Workbench[MCR Workbench UI]
-        API_Client[API Client]
-    end
-
-    subgraph MCR Server
-        direction LR
-        WSH[WebSocket Handler]
-
-        subgraph Core Logic
-            MCR_Service[MCR Service]
-            SM[Strategy Manager]
-            SE[Strategy Executor (langchain.js)]
-            RS[Reasoner Service (tau-prolog)]
-            SS[Session Store]
-        end
-
-        subgraph Providers
-            LLM[LLM Provider]
-            Prolog[Prolog Reasoner]
-        end
-
-        subgraph Evolution Engine
-            Optimizer
-            Evolver
-            CurriculumGen
-            PerfDB[(Performance DB)]
-        end
-    end
-
-    Workbench -- WebSocket API --> WSH
-    API_Client -- WebSocket API --> WSH
-    WSH -- Invokes --> MCR_Service
-    MCR_Service -- Uses --> SM
-    MCR_Service -- Uses --> SE
-    MCR_Service -- Uses --> RS
-    MCR_Service -- Manages --> SS
-    SM -- Provides Strategy --> SE
-    SE -- Uses --> LLM
-    RS -- Uses --> Prolog
-
-    MCR_Service -- Triggers --> Optimizer
-    Optimizer -- Uses --> Evolver
-    Optimizer -- Uses --> CurriculumGen
-    Optimizer -- Accesses --> PerfDB
-    MCR_Service -- Uses data from --> PerfDB
-
-    classDef core fill:#ddeeff,stroke:#333,stroke-width:2px;
-    classDef external fill:#e6ffcc,stroke:#333,stroke-width:2px;
-    classDef engine fill:#fff0b3,stroke:#333,stroke-width:2px;
-
-    class MCR_Service,SM,SE,RS,SS,WSH core;
-    class Workbench,API_Client,LLM,Prolog external;
-    class Optimizer,Evolver,CurriculumGen,PerfDB engine;
-
-```
 
 ### `langchain.js` Integration
 
@@ -145,143 +76,93 @@ The system is bootstrapped with functional, human-authored strategies, ensuring 
 
 5.  **Input Router**: A runtime optimizer that is part of the `MCR Service`. For each incoming request, it can query the `Performance Database` to select the optimal strategy for that specific type of input, based on historical performance data (success rate, cost, latency).
 
-### 🏁 Quick Start
+### 🚀 Getting Started & MCP Integration
 
-This section guides you through getting a production-like instance of MCR running locally.
+MCR3 is designed for two primary use cases:
+1.  **Standalone Tool**: Interacting directly with the MCR engine via its powerful Terminal UI (TUI).
+2.  **MCP Tool**: Serving as a reasoning engine for an AI agent or host that conforms to the Model Context Protocol (MCP).
 
-**1. Clone & Install:**
+#### 1. Installation & Setup
 
+The setup process is the same for both use cases.
+
+**A. Clone and Install:**
 ```bash
-git clone <repository_url> mcr3
+git clone https://github.com/your-repo/mcr3.git # Replace with the actual repo URL
 cd mcr3
 npm install
 ```
 
-**2. Configure Your LLM:**
-
-Create a `.env` file in the project root by copying `.env.example`. Then, edit `.env` to add your chosen LLM provider API key and other settings.
-
+**B. Configure Your LLM:**
+Create a `.env` file by copying the example, then add your LLM provider API key.
+```bash
+cp .env.example .env
+# Now, edit .env
+```
 ```dotenv
 # .env
-MCR_LLM_PROVIDER="openai" # or gemini, ollama
-OPENAI_API_KEY="sk-..."
+MCR_LLM_PROVIDER="openai" # or "gemini", "ollama"
+OPENAI_API_KEY="sk-..."   # Your key here
 ```
 
-**3. Build the MCR Workbench UI:**
-
-The MCR Workbench is a React/Vite application. For production, you must build its static assets.
-
+**C. Start the MCR Server:**
+This command launches the MCR WebSocket server, making it ready for connections from the TUI or an MCP client.
 ```bash
-# From the project root
-cd ui
-npm install
-npm run build
-cd ..
-```
-
-**4. Start the MCR Server:**
-
-The server will automatically serve the built UI assets.
-
-```bash
-# From the project root
 npm start
 ```
+The server will start on the port configured in `.env` (default: `8080`).
 
-The server will start on the configured port (e.g., `http://localhost:8080`).
+#### 2. Usage as a Standalone Tool (TUI)
 
-### 🖥️ MCR Workbench
+To interact with MCR directly, run the Terminal UI in a separate terminal.
 
-The MCR Workbench is the primary graphical interface for MCR. Once the server is running, simply navigate to its URL (e.g., `http://localhost:8080`) in your web browser.
+```bash
+npm run tui
+```
+The TUI provides an interactive command-line environment to create sessions, assert facts, ask questions, and manage the reasoning engine.
 
-**Features:**
--   Interactive chat for assertions and queries.
--   Live view of a session's Knowledge Base.
--   Manage and select translation strategies.
--   View performance dashboards and control the Evolution Engine.
+#### 3. Usage as an MCP Tool
 
-### 🔌 API Reference
+MCR3 is a fully compliant MCP tool provider, ready to be auto-installed and used by MCP hosts.
 
-The `mcr3` service operates on a **WebSocket-first** principle. The API is designed for real-time, stateful interaction, making it ideal for building responsive applications.
+**For MCP Hosts (Auto-Installation):**
+An MCP host can install and run MCR3 with the following commands:
+```bash
+git clone https://github.com/your-repo/mcr3.git mcr3
+cd mcr3
+npm install
+npm start
+```
+The host must also provide the necessary environment variables (e.g., `MCR_LLM_PROVIDER`, `OPENAI_API_KEY`) for the `.env` file.
 
--   **Connection**: Clients connect to the server via `ws://<host>:<port>/ws`.
--   **Message Format**: All messages are JSON strings.
+**Connecting and Communicating:**
+-   **Endpoint**: MCP clients should connect to the WebSocket server at `ws://localhost:8080/ws`.
+-   **Protocol**: MCR3 listens for standard MCP `tool_invoke` and `tool_result` messages on this endpoint. It uses the `tool_name` to route requests to its internal functions.
 
-#### Core Message Pattern
+**Example: Asserting a Fact via MCP**
+An MCP client would send a JSON message like this over the WebSocket connection:
+```json
+{
+  "type": "tool_invoke",
+  "messageId": "msg_12345",
+  "payload": {
+    "tool_name": "session.assert",
+    "input": {
+      "sessionId": "session-abc",
+      "nl_assertion": "Socrates is a man."
+    }
+  }
+}
+```
 
-The API follows a simple `tool_invoke` / `tool_result` pattern.
-
-1.  **Client to Server: `tool_invoke`**
-    -   The client requests an action.
-    -   Structure: `{ "type": "tool_invoke", "messageId": "...", "payload": { "tool_name": "...", "input": {...} } }`
-
-2.  **Server to Client: `tool_result`**
-    -   The server responds to the request.
-    -   The `messageId` from the request is echoed back for correlation.
-    -   Structure: `{ "type": "tool_result", "messageId": "...", "payload": { "success": boolean, "data": {...}, "error": "..." } }`
-
-#### Available Tools (Summary)
-
-The `tool_name` parameter determines which action is performed. The API provides a rich set of tools, including:
-
--   **Session Management**:
-    -   `session.create`, `session.get`, `session.delete`: Manage reasoning sessions.
-    -   `session.assert`: Assert natural language into a session's KB.
-    -   `session.query`: Query a session's KB using natural language.
-    -   `session.set_kb`: Directly overwrite a session's KB with Prolog code.
--   **Ontology Management**:
-    -   `ontology.create`, `ontology.list`, `ontology.get`, `ontology.update`, `ontology.delete`: Manage global, reusable ontologies.
--   **Direct Translation**:
-    -   `translate.nlToRules`: Translate NL to Prolog without affecting a session.
-    -   `translate.rulesToNl`: Translate Prolog rules into an NL explanation.
--   **Strategy Management**:
-    -   `strategy.list`, `strategy.setActive`, `strategy.getActive`: Manage and inspect translation strategies.
--   **System Analysis & Evolution**:
-    -   `analysis.*`: A suite of tools for inspecting performance data and curricula.
-    -   `evolution.*`: Tools to control the Evolution Engine (start, stop, get status).
--   **Utility & Debugging**:
-    -   `llm.passthrough`: Send text directly to the LLM.
-    -   `utility.debugFormatPrompt`: Inspect how prompts are formatted.
-
-*(For a complete list of tools and their detailed `input` and `payload` structures, a full `WEBSOCKET_API.md` document will be maintained.)*
-
-#### Model Context Protocol (MCP) Integration
-
-`mcr3` is designed to act as a tool provider for AI agents that use the **Model Context Protocol (MCP)**.
-
--   **Primary Transport**: MCP communication is handled over the **same WebSocket connection** as the primary tool API. The server will differentiate between MCR and MCP messages based on their structure.
--   **Architectural Flexibility**: While WebSocket is the primary transport, the architecture is designed to be adaptable. If an MCP client requires a different transport mechanism (e.g., HTTP long-polling or `stdio`), a dedicated **bridge** can be implemented. This bridge would translate the client's transport protocol into the MCR's internal tool invocation system, requiring no changes to the core logic.
-
-### 🛠️ Development Setup
-
-For UI development, you can run the Vite development server for hot reloading. This requires running two processes in separate terminals.
-
-1.  **Start the MCR Backend Server:**
-    ```bash
-    # In terminal 1 (project root)
-    npm start
-    ```
-
-2.  **Start the Vite UI Dev Server:**
-    ```bash
-    # In terminal 2 (project root)
-    cd ui
-    npm run dev
-    ```
-    Access the UI via the Vite URL shown in the terminal (e.g., `http://localhost:5173`). The UI will connect to the backend server running on port 8080.
+MCR3 will process this request and respond with a `tool_result` message.
 
 ### 🧪 Testing
 
-The project includes a comprehensive test suite.
+The project includes a comprehensive test suite for the backend services.
 
--   **Run Backend Tests (Jest):**
+-   **Run All Tests (Jest):**
     From the project root:
     ```bash
     npm test
-    ```
-
--   **Run UI Tests (Vitest):**
-    From the `ui` directory:
-    ```bash
-    npm run test
     ```

@@ -63,4 +63,4 @@ class SessionStore {
 }
 
 // Export a singleton instance
-module.exports = new SessionStore();
+module.exports = SessionStore;
