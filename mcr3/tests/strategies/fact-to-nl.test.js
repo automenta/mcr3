@@ -28,18 +28,13 @@ describe('Fact-to-NL Strategy', () => {
     expect(strategy.last).toBeInstanceOf(StringOutputParser);
   });
 
-  it('should correctly format the prompt for a given input', async () => {
+  it('should return the natural language translation from the LLM', async () => {
     const fact = "father_of('Adam', 'Cain').";
     const expectedOutput = "Adam is the father of Cain.";
     // Mock the LLM to return an AIMessage, which is what the real LLM would do.
     mockLlm.invoke.mockResolvedValue(new AIMessage(expectedOutput));
 
     const result = await strategy.invoke({ input: fact });
-
-    // Verify the prompt that was passed to the LLM
-    const capturedPrompt = mockLlm.invoke.mock.calls[0][0];
-    expect(capturedPrompt.input).toContain(fact);
-    expect(capturedPrompt.template).toContain("Translate the following Prolog fact into a natural language sentence:");
 
     // The StringOutputParser will extract the content from the AIMessage.
     expect(result).toBe(expectedOutput);

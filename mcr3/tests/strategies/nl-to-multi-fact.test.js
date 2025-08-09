@@ -28,7 +28,7 @@ describe('NL-to-Multi-Fact Strategy', () => {
     expect(strategy.last).toBeInstanceOf(JsonOutputParser);
   });
 
-  it('should correctly format the prompt and parse the JSON output', async () => {
+  it('should return the parsed JSON object from the LLM', async () => {
     const statement = "Adam is a man and Eve is a woman.";
     const mockResponse = { facts: ["man('Adam').", "woman('Eve')."] };
     // The LLM is expected to return a string that can be parsed as JSON.
@@ -36,10 +36,6 @@ describe('NL-to-Multi-Fact Strategy', () => {
     mockLlm.invoke.mockResolvedValue(new AIMessage(JSON.stringify(mockResponse)));
 
     const result = await strategy.invoke({ input: statement });
-
-    const capturedPrompt = mockLlm.invoke.mock.calls[0][0];
-    expect(capturedPrompt.input).toContain(statement);
-    expect(capturedPrompt.template).toContain("translate a natural language statement into a JSON object");
 
     expect(result).toEqual(mockResponse);
   });

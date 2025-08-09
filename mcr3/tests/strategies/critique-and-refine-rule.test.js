@@ -28,17 +28,13 @@ describe('Critique-and-Refine-Rule Strategy', () => {
     expect(strategy.last).toBeInstanceOf(StringOutputParser);
   });
 
-  // it('should correctly format the prompt for a given input', async () => {
-  //   const rule = "sibling(X, Y) :- parent(Z, X), parent(Z, Y).";
-  //   const refinedRule = "sibling(X, Y) :- parent(Z, X), parent(Z, Y), X \\= Y.";
-  //   mockLlm.invoke.mockResolvedValue(new AIMessage(refinedRule));
+  it('should return the refined rule from the LLM', async () => {
+    const rule = "sibling(X, Y) :- parent(Z, X), parent(Z, Y).";
+    const refinedRule = "sibling(X, Y) :- parent(Z, X), parent(Z, Y), X \\= Y.";
+    mockLlm.invoke.mockResolvedValue(new AIMessage(refinedRule));
 
-  //   const result = await strategy.invoke({ input: rule });
+    const result = await strategy.invoke({ input: rule });
 
-  //   const capturedPrompt = mockLlm.invoke.mock.calls[0][0];
-  //   expect(capturedPrompt.input).toContain(rule);
-  //   expect(capturedPrompt.template).toContain("Analyze, critique, and refine the following Prolog rule.");
-
-  //   expect(result).toBe(refinedRule);
-  // });
+    expect(result).toBe(refinedRule);
+  });
 });

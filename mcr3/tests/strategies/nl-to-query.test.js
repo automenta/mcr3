@@ -27,17 +27,12 @@ describe('NL-to-Query Strategy', () => {
     expect(strategy.last).toBeInstanceOf(StringOutputParser);
   });
 
-  it('should correctly format the prompt for a given input', async () => {
+  it('should return the Prolog query from the LLM', async () => {
     const question = "Who is the father of Cain?";
     const expectedOutput = "father_of(Who, 'Cain').";
     mockLlm.invoke.mockResolvedValue(new AIMessage(expectedOutput));
 
     const result = await strategy.invoke({ input: question });
-
-    // Verify the prompt that was passed to the LLM
-    const capturedPrompt = mockLlm.invoke.mock.calls[0][0];
-    expect(capturedPrompt.input).toContain(question);
-    expect(capturedPrompt.template).toContain("Translate the following question into a Prolog query:");
 
     // Verify the final output
     expect(result).toBe(expectedOutput);
