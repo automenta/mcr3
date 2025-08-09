@@ -1,53 +1,50 @@
 const StrategyExecutor = require('../src/services/strategyExecutor');
+const { StrategyExecutionError } = require('../src/errors');
 
 describe('StrategyExecutor', () => {
-  let strategyExecutor;
+  let executor;
   let mockStrategy;
 
   beforeEach(() => {
-    strategyExecutor = new StrategyExecutor();
+    executor = new StrategyExecutor();
     mockStrategy = {
+      name: 'mock-strategy',
       invoke: jest.fn(),
     };
   });
 
-  test('should execute a valid strategy and return the result', async () => {
-    const inputs = { input: 'test' };
-    const expectedOutput = 'success';
-    mockStrategy.invoke.mockResolvedValue(expectedOutput);
+  it('should execute a valid strategy and return the result', async () => {
+    const inputs = { query: 'test' };
+    const expectedResult = 'success';
+    mockStrategy.invoke.mockResolvedValue(expectedResult);
 
-    const result = await strategyExecutor.execute(mockStrategy, inputs);
+    const result = await executor.execute(mockStrategy, inputs);
 
     expect(mockStrategy.invoke).toHaveBeenCalledWith(inputs);
-    expect(result).toBe(expectedOutput);
+    expect(result).toBe(expectedResult);
   });
 
-  test('should handle strategy output as a content object', async () => {
-    const inputs = { input: 'test' };
-    const expectedOutput = { content: 'success from object' };
-    mockStrategy.invoke.mockResolvedValue(expectedOutput);
+  it('should handle strategy output as a content object', async () => {
+    const inputs = { query: 'test' };
+    const expectedResult = { content: 'success' };
+    mockStrategy.invoke.mockResolvedValue(expectedResult);
 
-    const result = await strategyExecutor.execute(mockStrategy, inputs);
+    const result = await executor.execute(mockStrategy, inputs);
 
-    expect(result).toBe(expectedOutput.content);
+    expect(result).toEqual(expectedResult);
   });
 
-  test('should throw an error if the strategy is not a valid runnable', async () => {
-    const invalidStrategy = {}; // Does not have an 'invoke' method
-    const inputs = { input: 'test' };
-
-    await expect(strategyExecutor.execute(invalidStrategy, inputs))
-      .rejects
-      .toThrow('Invalid strategy provided. Must be a LangChain runnable.');
+  it('should throw an error if the strategy is not a valid runnable', async () => {
+    const invalidStrategy = {}; // No invoke method or name
+    await expect(executor.execute(invalidStrategy, {})).rejects.toThrow(
+      'Invalid strategy provided. Must be a LangChain runnable with a name.'
+    );
   });
 
-  test('should re-throw a specific error if strategy execution fails', async () => {
-    const inputs = { input: 'test' };
-    const originalError = new Error('LLM call failed');
-    mockStrategy.invoke.mockRejectedValue(originalError);
+  it('should re-throw a specific error if strategy execution fails', async () => {
+    const error = new Error('LLM call failed');
+    mockStrategy.invoke.mockRejectedValue(error);
 
-    await expect(strategyExecutor.execute(mockStrategy, inputs))
-      .rejects
-      .toThrow(`Failed to execute translation strategy: ${originalError.message}`);
+    await expect(executor.execute(mockStrategy, {})).rejects.toThrow(StrategyExecutionError);
   });
 });

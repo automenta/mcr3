@@ -1,38 +1,26 @@
 const fs = require('fs');
 const path = require('path');
+const { StrategyLoadError, StrategyNotFoundError } = require('../errors');
 
 /**
  * Manages the loading and retrieval of translation strategies.
- *
- * This service dynamically loads strategy modules from the `../strategies` directory.
- * Each strategy module is expected to be a function that accepts an LLM instance
- * and returns a LangChain runnable. This allows strategies to be self-contained
- * and easily added or removed.
  */
 class StrategyManager {
   constructor(initialLlm) {
     this.strategies = new Map();
     this.activeStrategyName = null;
-    this.llm = initialLlm; // The initial LLM is passed in.
+    this.llm = initialLlm;
     this.loadStrategies();
   }
 
-  /**
-   * Rebuilds all strategies using a new LLM instance.
-   * @param {object} newLlm - The new LangChain LLM instance.
-   */
   rebuildStrategies(newLlm) {
     console.log('Rebuilding strategies with new LLM instance.');
     this.llm = newLlm;
-    // Clear existing strategies and reload them with the new LLM
     this.strategies.clear();
     this.activeStrategyName = null;
     this.loadStrategies();
   }
 
-  /**
-   * Loads all strategy modules from the strategies directory.
-   */
   loadStrategies() {
     const strategiesDir = path.join(__dirname, '..', '..', 'strategies');
     if (!fs.existsSync(strategiesDir)) {
@@ -60,21 +48,17 @@ class StrategyManager {
         this.strategies.set(strategy.name, strategy);
         console.log(`Successfully loaded strategy: ${strategy.name}`);
 
-        // Set the first loaded strategy as the default active one.
         if (!this.activeStrategyName) {
           this.activeStrategyName = strategy.name;
           console.log(`Set default active strategy to: ${strategy.name}`);
         }
       } catch (error) {
-        console.error(`Failed to load strategy from ${file}:`, error);
+        // Wrap the original error in our custom error type for better context.
+        throw new StrategyLoadError(file, error);
       }
     }
   }
 
-  /**
-   * Returns a list of all available strategy names and descriptions.
-   * @returns {Array<object>}
-   */
   listStrategies() {
     return Array.from(this.strategies.values()).map(s => ({
       name: s.name,
@@ -82,36 +66,28 @@ class StrategyManager {
     }));
   }
 
-  /**
-   * Sets the active strategy for the system.
-   * @param {string} name - The name of the strategy to activate.
-   * @returns {boolean} True if the strategy was found and set, false otherwise.
-   */
   setActiveStrategy(name) {
-    if (this.strategies.has(name)) {
-      this.activeStrategyName = name;
-      console.log(`Active strategy set to: ${name}`);
-      return true;
+    if (!this.strategies.has(name)) {
+      throw new StrategyNotFoundError(name);
     }
-    console.warn(`Attempted to set unknown strategy: ${name}`);
-    return false;
+    this.activeStrategyName = name;
+    console.log(`Active strategy set to: ${name}`);
+    return true;
   }
 
-  /**
-   * Retrieves the currently active strategy object.
-   * @returns {object | undefined} The active strategy runnable.
-   */
   getActiveStrategy() {
-    return this.strategies.get(this.activeStrategyName);
+    if (!this.activeStrategyName) {
+      return undefined;
+    }
+    return this.getStrategy(this.activeStrategyName);
   }
 
-  /**
-   * Retrieves a strategy by its name.
-   * @param {string} name - The name of the strategy to retrieve.
-   * @returns {object | undefined} The strategy runnable.
-   */
   getStrategy(name) {
-    return this.strategies.get(name);
+    const strategy = this.strategies.get(name);
+    if (!strategy) {
+      throw new StrategyNotFoundError(name);
+    }
+    return strategy;
   }
 }
 

@@ -1,7 +1,7 @@
+const { StrategyExecutionError } = require('../errors');
+
 /**
  * The Strategy Executor is responsible for running translation strategies.
- * It takes a LangChain runnable (the strategy) and an input, invokes the chain,
- * and handles any errors that occur during execution.
  */
 class StrategyExecutor {
   constructor() {
@@ -10,28 +10,28 @@ class StrategyExecutor {
 
   /**
    * Executes a given translation strategy.
-   * @param {object} strategy - A LangChain runnable (e.g., a chain).
+   * @param {object} strategy - A LangChain runnable with a 'name' property.
    * @param {object} inputs - The key-value inputs for the chain.
-   * @returns {Promise<string>} The output of the strategy execution.
-   * @throws {Error} If the strategy execution fails.
+   * @returns {Promise<any>} The output of the strategy execution.
+   * @throws {StrategyExecutionError} If the strategy execution fails.
    */
   async execute(strategy, inputs) {
-    if (!strategy || typeof strategy.invoke !== 'function') {
-      throw new Error('Invalid strategy provided. Must be a LangChain runnable.');
+    if (!strategy || typeof strategy.invoke !== 'function' || !strategy.name) {
+      throw new Error('Invalid strategy provided. Must be a LangChain runnable with a name.');
     }
 
     try {
-      console.log(`Executing strategy with inputs:`, inputs);
+      console.log(`Executing strategy "${strategy.name}" with inputs:`, inputs);
       const result = await strategy.invoke(inputs);
-      // Assuming the final output of the chain is a string (e.g., from an OutputParser)
-      // LangChain can return complex objects, but for NL->Prolog, we expect a string.
-      const output = typeof result === 'string' ? result : result.content;
-      console.log('Strategy execution successful, output:', output);
-      return output;
+
+      // LangChain can return complex objects. The output parser of the strategy
+      // is responsible for shaping the final result. We return it as is.
+      console.log(`Strategy "${strategy.name}" execution successful.`);
+      return result;
     } catch (error) {
-      console.error('Strategy execution failed:', error);
-      // Re-throw a more specific error to be handled by the calling service.
-      throw new Error(`Failed to execute translation strategy: ${error.message}`);
+      console.error(`Strategy "${strategy.name}" execution failed:`, error);
+      // Wrap the original error in our custom error type for better context.
+      throw new StrategyExecutionError(strategy.name, error);
     }
   }
 }

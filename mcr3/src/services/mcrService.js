@@ -154,6 +154,64 @@ class MCRService {
     return { success: true, refinedRule, strategy: strategy.name };
   }
 
+  async explainQueryTrace(sessionId, query, trace) {
+    const session = this.sessionStore.getSession(sessionId);
+    if (!session) throw new Error(`Session not found: ${sessionId}`);
+
+    const strategy = this.strategyManager.getStrategy('query-trace-to-nl');
+    if (!strategy) throw new Error(`The 'query-trace-to-nl' strategy is not available.`);
+
+    const { kb } = session;
+    const explanation = await this.strategyExecutor.execute(strategy, {
+      knowledge_base: kb,
+      query,
+      trace,
+    });
+
+    return { success: true, explanation, strategy: strategy.name };
+  }
+
+  async generateTestCases(sessionId, rule) {
+    const session = this.sessionStore.getSession(sessionId);
+    if (!session) throw new Error(`Session not found: ${sessionId}`);
+
+    const strategy = this.strategyManager.getStrategy('generate-test-cases');
+    if (!strategy) throw new Error(`The 'generate-test-cases' strategy is not available.`);
+
+    const testCases = await this.strategyExecutor.execute(strategy, { rule });
+
+    return { success: true, testCases, strategy: strategy.name };
+  }
+
+  async explainQueryTrace(sessionId, query, trace) {
+    const session = this.sessionStore.getSession(sessionId);
+    if (!session) throw new Error(`Session not found: ${sessionId}`);
+
+    const strategy = this.strategyManager.getStrategy('query-trace-to-nl');
+    if (!strategy) throw new Error(`The 'query-trace-to-nl' strategy is not available.`);
+
+    const { kb } = session;
+    const explanation = await this.strategyExecutor.execute(strategy, {
+      knowledge_base: kb,
+      query,
+      trace,
+    });
+
+    return { success: true, explanation, strategy: strategy.name };
+  }
+
+  async generateTestCases(sessionId, rule) {
+    const session = this.sessionStore.getSession(sessionId);
+    if (!session) throw new Error(`Session not found: ${sessionId}`);
+
+    const strategy = this.strategyManager.getStrategy('generate-test-cases');
+    if (!strategy) throw new Error(`The 'generate-test-cases' strategy is not available.`);
+
+    const testCases = await this.strategyExecutor.execute(strategy, { rule });
+
+    return { success: true, testCases, strategy: strategy.name };
+  }
+
   getKnowledgeBase(sessionId) {
     const session = this.sessionStore.getSession(sessionId);
     if (!session) {

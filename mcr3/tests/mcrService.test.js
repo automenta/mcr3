@@ -68,6 +68,7 @@ describe('MCRService', () => {
     test('should create a session and seed it with the default ontology', async () => {
       const mockOntology = "family_tree_rules.";
       fs.readFileSync.mockReturnValue(mockOntology);
+      fs.existsSync.mockReturnValue(true); // Make sure the file is found
 
       const sessionId = await mcrService.createSession();
 
@@ -81,14 +82,15 @@ describe('MCRService', () => {
   });
 
   describe('assert', () => {
-    test('should use the active strategy to assert a fact', async () => {
+    test('should use a specific strategy to assert a fact if provided', async () => {
       const input = 'Socrates is a man';
-      const expectedProlog = 'nl-to-fact(Socrates is a man).';
+      const strategyName = 'nl-to-conditional-rule';
+      const expectedProlog = `${strategyName}(${input}).`;
 
-      const result = await mcrService.assert('mockSessionId', input);
+      const result = await mcrService.assert('mockSessionId', input, strategyName);
 
-      expect(mockStrategyManager.getActiveStrategy).toHaveBeenCalled();
-      expect(mockStrategyExecutor.execute).toHaveBeenCalledWith({ name: 'nl-to-fact' }, { input });
+      expect(mockStrategyManager.getStrategy).toHaveBeenCalledWith(strategyName);
+      expect(mockStrategyExecutor.execute).toHaveBeenCalledWith({ name: strategyName }, { input });
       expect(reasoner.consult).toHaveBeenCalledWith({ id: 'prologSession' }, expectedProlog);
       expect(result.asserted).toBe(expectedProlog);
     });
@@ -97,20 +99,20 @@ describe('MCRService', () => {
   describe('query', () => {
     test('should translate NL->Prolog, get answers, and translate Prolog->NL', async () => {
       const input = 'is Socrates a man?';
-      const prologQuery = 'nl_to_rule(is_socrates_a_man).';
+      const prologQuery = 'nl-to-query(is_socrates_a_man).';
       // The mock reasoner returns substitutions with a 'links' property, which is what the service uses.
       const structuredAnswers = [{ links: { X: 'test' } }];
       const finalAnswer = "Yes, Socrates is a man.";
 
       // Mock the strategy implementations for this specific test
       mockStrategyManager.getStrategy.mockImplementation(name => {
-        if (name === 'nl-to-rule') return { name: 'nl-to-rule' };
+        if (name === 'nl-to-query') return { name: 'nl-to-query' };
         if (name === 'answers-to-nl') return { name: 'answers-to-nl' };
         return { name: 'some-default' };
       });
 
       mockStrategyExecutor.execute.mockImplementation(async (strategy, inputs) => {
-        if (strategy.name === 'nl-to-rule') return prologQuery;
+        if (strategy.name === 'nl-to-query') return prologQuery;
         if (strategy.name === 'answers-to-nl') return finalAnswer;
         return 'default execution';
       });
@@ -118,11 +120,11 @@ describe('MCRService', () => {
       // Ensure the mock reasoner provides the expected answer structure
       reasoner.getAnswers.mockResolvedValue(structuredAnswers);
 
-      const result = await mcrService.query('mockSessionId', input);
+      const result = await mcrService.query('mockSessionId', input, 'nl-to-query');
 
       // 1. Verify the NL -> Prolog step
-      expect(mockStrategyManager.getStrategy).toHaveBeenCalledWith('nl-to-rule');
-      expect(mockStrategyExecutor.execute).toHaveBeenCalledWith({ name: 'nl-to-rule' }, { input });
+      expect(mockStrategyManager.getStrategy).toHaveBeenCalledWith('nl-to-query');
+      expect(mockStrategyExecutor.execute).toHaveBeenCalledWith({ name: 'nl-to-query' }, { input });
       expect(reasoner.query).toHaveBeenCalledWith({ id: 'prologSession' }, prologQuery);
 
       // 2. Verify the Prolog -> NL step
@@ -135,7 +137,6 @@ describe('MCRService', () => {
 
       // 3. Verify the final result
       expect(result.answer).toEqual(finalAnswer);
-      expect(result.answers).toBeUndefined(); // The old 'answers' property should be gone
     });
   });
 
@@ -147,8 +148,43 @@ describe('MCRService', () => {
       const result = await mcrService.explain('mockSessionId', input);
 
       expect(mockStrategyManager.getStrategy).toHaveBeenCalledWith('rules-to-nl');
-      expect(mockStrategyExecutor.execute).toHaveBeenCalledWith({ name: 'rules-to-nl' }, { input });
+      expect(mockStrategyExecutor.execute).toHaveBeenCalledWith({ name: 'rules-to-nl' }, { input: input });
       expect(result.explanation).toBe(expectedNl);
+    });
+  });
+
+  describe('explainQueryTrace', () => {
+    test('should use the query-trace-to-nl strategy to explain a trace', async () => {
+      const query = 'mortal(socrates).';
+      const trace = '...trace...';
+      const expectedNl = 'Socrates is mortal because...';
+      mockStrategyExecutor.execute.mockResolvedValue(expectedNl);
+
+      const result = await mcrService.explainQueryTrace('mockSessionId', query, trace);
+
+      expect(mockStrategyManager.getStrategy).toHaveBeenCalledWith('query-trace-to-nl');
+      expect(mockStrategyExecutor.execute).toHaveBeenCalledWith(
+        { name: 'query-trace-to-nl' },
+        { knowledge_base: '', query, trace }
+      );
+      expect(result.explanation).toBe(expectedNl);
+    });
+  });
+
+  describe('generateTestCases', () => {
+    test('should use the generate-test-cases strategy to generate test cases', async () => {
+      const rule = 'mortal(X) :- man(X).';
+      const expectedTestCases = { setup: [], assertions: [] };
+      mockStrategyExecutor.execute.mockResolvedValue(expectedTestCases);
+
+      const result = await mcrService.generateTestCases('mockSessionId', rule);
+
+      expect(mockStrategyManager.getStrategy).toHaveBeenCalledWith('generate-test-cases');
+      expect(mockStrategyExecutor.execute).toHaveBeenCalledWith(
+        { name: 'generate-test-cases' },
+        { rule }
+      );
+      expect(result.testCases).toBe(expectedTestCases);
     });
   });
 });

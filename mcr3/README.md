@@ -45,6 +45,34 @@ This combination unlocks a new class of more robust, explainable, and sophistica
 -   **Automated Evolution Engine**: A self-optimizing system that autonomously discovers, evaluates, and refines translation strategies to continuously improve performance.
 -   **MCP Integration**: Ready to serve as a reasoning tool for AI clients that support the Model Context Protocol.
 
+## ⚙️ Core Services and API
+
+The `MCRService` is the primary entry point for interacting with the MCR system. It exposes a set of methods for managing sessions and performing reasoning tasks.
+
+-   `createSession()`: Creates a new, isolated reasoning session.
+-   `assert(sessionId, naturalLanguageInput, strategyName)`: Translates a natural language statement into a Prolog fact or rule and asserts it into the knowledge base.
+-   `query(sessionId, naturalLanguageInput, strategyName)`: Translates a natural language question into a Prolog query, executes it, and returns a natural language answer.
+-   `explain(sessionId, prologRule)`: Translates a Prolog rule or fact into a natural language explanation.
+-   `critiqueAndRefine(sessionId, prologRule)`: Critiques a given Prolog rule and suggests a refinement.
+-   `explainQueryTrace(sessionId, query, trace)`: Explains the reasoning trace of a query in natural language.
+-   `generateTestCases(sessionId, rule)`: Generates a set of test cases for a given Prolog rule.
+-   `getKnowledgeBase(sessionId)`: Retrieves the current knowledge base for a session.
+
+### Available Strategies
+
+MCR3 comes with a set of pre-built strategies for various tasks. The `strategyName` parameter in methods like `assert` and `query` allows you to select the appropriate strategy for your needs.
+
+-   `nl-to-fact`: For simple assertions (e.g., "Socrates is a man.").
+-   `nl-to-multi-fact`: For more complex assertions that result in multiple facts.
+-   `nl-to-rule`: For general-purpose rules.
+-   `nl-to-conditional-rule`: For conditional rules (e.g., "if...then...").
+-   `nl-to-query`: For translating questions into queries.
+-   `answers-to-nl`: For summarizing query answers in natural language.
+-   `rules-to-nl`: For explaining rules in natural language.
+-   `critique-and-refine-rule`: For improving existing rules.
+-   `query-trace-to-nl`: For explaining the reasoning trace of a query.
+-   `generate-test-cases`: For generating test cases for a rule.
+
 ### `langchain.js` Integration
 
 `mcr3` leverages `langchain.js` as the primary engine for orchestrating interactions with LLMs. This is a significant architectural choice that makes the system more modular, powerful, and easier to extend.
