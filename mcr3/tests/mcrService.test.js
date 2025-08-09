@@ -67,6 +67,7 @@ describe('MCRService', () => {
   describe('createSession', () => {
     test('should create a session and seed it with the default ontology', async () => {
       const mockOntology = "family_tree_rules.";
+      fs.existsSync.mockReturnValue(true);
       fs.readFileSync.mockReturnValue(mockOntology);
 
       const sessionId = await mcrService.createSession();

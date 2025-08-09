@@ -1,5 +1,6 @@
 const { PromptTemplate } = require('@langchain/core/prompts');
 const { StringOutputParser } = require('@langchain/core/output_parsers');
+const { RunnableSequence } = require('@langchain/core/runnables');
 
 /**
  * Creates a translation strategy for explaining a Prolog rule in natural language.
@@ -39,7 +40,11 @@ Output:`,
     inputVariables: ['input'],
   });
 
-  const chain = promptTemplate.pipe(llm).pipe(new StringOutputParser());
+  const chain = RunnableSequence.from([
+    promptTemplate,
+    llm,
+    new StringOutputParser(),
+  ]);
 
   chain.name = name;
   chain.description = description;
