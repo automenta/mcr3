@@ -6,7 +6,7 @@
   "scripts": {
     "start": "node src/index.js",
     "dev": "nodemon src/index.js",
-    "test": "jest",
+    "test": "node --max-old-space-size=4096 node_modules/.bin/jest --runInBand",
     "tui": "node src/tui/index.js"
   },
   "keywords": [

@@ -2,10 +2,6 @@ const fs = require('fs');
 const path = require('path');
 const StrategyManager = require('../src/services/strategyManager');
 
-// Mock the LLM provider
-jest.mock('../src/providers/llmProvider', () => ({
-  createLlm: jest.fn(() => ({ pipe: jest.fn(), invoke: jest.fn(), withConfig: jest.fn() })), // Return a dummy LLM object
-}));
 
 const strategiesDir = path.join(__dirname, '..', 'strategies');
 let dirExisted = true;
@@ -49,7 +45,13 @@ describe('StrategyManager', () => {
     // and load the newly created strategy files.
     jest.isolateModules(() => {
       const FreshStrategyManager = require('../src/services/strategyManager');
-      strategyManager = new FreshStrategyManager();
+      // Create a mock LLM that is a valid Runnable
+      const mockLlm = {
+        invoke: jest.fn(),
+        pipe: jest.fn(),
+        withConfig: jest.fn(),
+      };
+      strategyManager = new FreshStrategyManager(mockLlm);
     });
   });
 
