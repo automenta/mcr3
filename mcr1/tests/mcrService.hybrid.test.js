@@ -60,37 +60,14 @@ const reasonerService = require('../src/reasonerService');
 const InMemorySessionStore = require('../src/store/InMemorySessionStore');
 const ontologyService = require('../src/ontologyService');
 const strategyManager = require('../src/strategyManager');
-const { MCRError, ErrorCodes } = require('../src/errors');
 const StrategyExecutor = require('../src/strategyExecutor');
-const EmbeddingBridge = require('../src/bridges/embeddingBridge');
+const KnowledgeGraph = require('../src/bridges/kgBridge');
 
 describe('MCR Service Hybrid Functionality', () => {
 	let sessionId;
 	let mockSessionStoreInstance;
-	let mcrService;
-	let llmService;
-	let reasonerService;
-	let InMemorySessionStore;
-	let ontologyService;
-	let strategyManager;
-	let StrategyExecutor;
-	let KnowledgeGraph;
 
 	beforeEach(async () => {
-		jest.resetModules();
-
-		// Require modules inside beforeEach to ensure mocks are applied
-		llmService = require('../src/llmService');
-		reasonerService = require('../src/reasonerService');
-		InMemorySessionStore = require('../src/store/InMemorySessionStore');
-		ontologyService = require('../src/ontologyService');
-		strategyManager = require('../src/strategyManager');
-		StrategyExecutor = require('../src/strategyExecutor');
-		KnowledgeGraph = require('../src/bridges/kgBridge');
-
-		// Re-require mcrService after all mocks are set up
-		mcrService = require('../src/mcrService');
-
 		sessionId = 'test-session-id';
 		mockSessionStoreInstance = new InMemorySessionStore();
 
@@ -117,6 +94,9 @@ describe('MCR Service Hybrid Functionality', () => {
 		llmService.generate.mockResolvedValue({ text: 'mock llm response' });
 		reasonerService.executeQuery.mockResolvedValue({ results: [] });
 		reasonerService.validateKnowledgeBase.mockResolvedValue({ isValid: true });
+
+		const sessions = {};
+		sessions[sessionId] = session;
 
 		mockSessionStoreInstance.addFacts.mockImplementation(
 			async (id, newFacts) => {
@@ -157,7 +137,6 @@ describe('MCR Service Hybrid Functionality', () => {
 		it('should add embeddings to session on assertion', async () => {
 			const nlText = 'Socrates is a man.';
 			const prologFact = 'man(socrates).';
-			const embedding = [0.1, 0.2, 0.3];
 			StrategyExecutor.prototype.execute.mockResolvedValue([prologFact]);
 
 			await mcrService.assertNLToSession(sessionId, nlText);
