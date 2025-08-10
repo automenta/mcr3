@@ -82,15 +82,49 @@ describe('MCRService', () => {
   });
 
   describe('assert', () => {
-    test('should use the active strategy to assert a fact', async () => {
+    test('should use the default "nl-to-fact" strategy when none is provided', async () => {
       const input = 'Socrates is a man';
       const expectedProlog = 'nl-to-fact(Socrates is a man).';
+      const mockStrategy = { name: 'nl-to-fact' };
+
+      // Ensure getStrategy returns our mock strategy
+      mockStrategyManager.getStrategy.mockReturnValue(mockStrategy);
 
       const result = await mcrService.assert('mockSessionId', input);
 
-      expect(mockStrategyManager.getActiveStrategy).toHaveBeenCalled();
-      expect(mockStrategyExecutor.execute).toHaveBeenCalledWith({ name: 'nl-to-fact' }, { input });
+      // Verify it tried to get the default strategy
+      expect(mockStrategyManager.getStrategy).toHaveBeenCalledWith('nl-to-fact');
+
+      // Verify the correct strategy and input were executed
+      expect(mockStrategyExecutor.execute).toHaveBeenCalledWith(mockStrategy, { input });
+
+      // Verify the reasoner was consulted with the result
       expect(reasoner.consult).toHaveBeenCalledWith({ id: 'prologSession' }, expectedProlog);
+
+      // Verify the result object is correct
+      expect(result.asserted).toBe(expectedProlog);
+    });
+
+    test('should use the specified strategy when provided', async () => {
+      const input = 'Socrates is a man';
+      const strategyName = 'some-other-strategy';
+      const expectedProlog = 'some-other-strategy(Socrates is a man).';
+      const mockStrategy = { name: strategyName };
+
+      mockStrategyManager.getStrategy.mockReturnValue(mockStrategy);
+
+      const result = await mcrService.assert(
+        'mockSessionId',
+        input,
+        strategyName
+      );
+
+      expect(mockStrategyManager.getStrategy).toHaveBeenCalledWith(strategyName);
+      expect(mockStrategyExecutor.execute).toHaveBeenCalledWith(mockStrategy, { input });
+      expect(reasoner.consult).toHaveBeenCalledWith(
+        { id: 'prologSession' },
+        expectedProlog
+      );
       expect(result.asserted).toBe(expectedProlog);
     });
   });

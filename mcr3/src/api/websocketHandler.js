@@ -7,22 +7,28 @@ class WebSocketHandler {
   }
 
   handleConnection(ws) {
-    console.log('Client connected to WebSocketHandler');
+    ws.correlationId = uuidv4();
+    console.log(`Client connected with correlationId: ${ws.correlationId}`);
 
     ws.on('message', (message) => this.handleMessage(ws, message));
     ws.on('close', () => this.handleClose(ws));
 
-    ws.send(JSON.stringify({ type: 'system', message: 'Welcome to MCR3 WebSocket API' }));
+    ws.send(JSON.stringify({
+        type: 'connection_ack',
+        correlationId: ws.correlationId,
+        message: 'WebSocket connection established with MCR3 server.'
+    }));
   }
 
   async handleMessage(ws, message) {
+    let parsedMessage;
     try {
-      const parsedMessage = JSON.parse(message);
-      console.log('Received message:', parsedMessage);
-
-      if (parsedMessage.type !== 'tool_invoke') {
-        throw new Error('Invalid message type');
+      parsedMessage = JSON.parse(message);
+      // Basic message validation
+      if (parsedMessage.type !== 'tool_invoke' || !parsedMessage.messageId || !parsedMessage.payload?.tool_name) {
+          throw new Error('Invalid message format. Must be a `tool_invoke` with `messageId` and `payload.tool_name`.');
       }
+      console.log(`[${ws.correlationId}] Received message:`, parsedMessage);
 
       const { tool_name, input } = parsedMessage.payload;
       let result;
@@ -62,22 +68,36 @@ class WebSocketHandler {
         case 'llm.setConfig':
           result = await this.mcrService.setLlmConfig(input);
           break;
-
+        case 'session.explain':
+            result = await this.mcrService.explain(input.sessionId, input.prologRule);
+            break;
+        case 'session.critiqueAndRefine':
+            result = await this.mcrService.critiqueAndRefine(input.sessionId, input.naturalLanguageInput);
+            break;
         default:
-          result = { success: false, error: `Unknown tool: ${tool_name}` };
+          throw new Error(`Unknown tool: ${tool_name}`);
       }
 
       ws.send(JSON.stringify({
         type: 'tool_result',
         messageId: parsedMessage.messageId,
+        correlationId: ws.correlationId,
         payload: result
       }));
 
     } catch (error) {
-      console.error(`Failed to handle message: ${JSON.stringify(message, null, 2)}`, error);
-      // Echo back the messageId if it exists, for better client-side tracking.
-      const messageId = message.messageId || null;
-      ws.send(JSON.stringify({ type: 'tool_result', messageId, payload: { success: false, error: error.message || 'An unexpected error occurred.' } }));
+        const messageId = parsedMessage ? parsedMessage.messageId : null;
+        console.error(`[${ws.correlationId}] Failed to handle message:`, error);
+        ws.send(JSON.stringify({
+            type: 'tool_result',
+            messageId,
+            correlationId: ws.correlationId,
+            payload: {
+                success: false,
+                error: 'TOOL_EXECUTION_ERROR',
+                details: error.message || 'An unexpected error occurred.'
+            }
+        }));
     }
   }
 

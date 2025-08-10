@@ -281,6 +281,33 @@ function onWsMessage(data) {
                     log({ summary, full: answer }, 'response');
                 } else if (tool_name === 'session.get_kb') {
                     updateKb(payload.kb);
+                } else if (tool_name === 'session.explain') {
+                    const { explanation } = payload;
+                    const summary = `Explanation: ${explanation.substring(0, 80)}...`;
+                    log({ summary, full: explanation }, 'response');
+                } else if (tool_name === 'session.critiqueAndRefine') {
+                    const { refinedRule } = payload;
+                    const summary = `Refined Rule: ${refinedRule.substring(0, 80)}...`;
+                    log({ summary, full: refinedRule }, 'response');
+                } else if (tool_name === 'llm.getLlmConfig') {
+                    const full = JSON.stringify(payload.config, null, 2);
+                    const summary = `Current LLM Config: ${payload.config.provider}`;
+                    log({ summary, full }, 'response');
+                } else if (tool_name === 'llm.getAvailableLlmProviders') {
+                    const full = payload.providers.join('\n');
+                    const summary = `Available Providers: ${payload.providers.join(', ')}`;
+                    log({ summary, full }, 'response');
+                } else if (tool_name === 'llm.setLlmConfig') {
+                    log(`{green-fg}${payload.message}{/}`);
+                } else if (tool_name === 'strategy.list') {
+                    const full = payload.strategies.map(s => `* ${s.name}: ${s.description}`).join('\n');
+                    const summary = `Available Strategies: ${payload.strategies.length}`;
+                    log({ summary, full }, 'response');
+                } else if (tool_name === 'strategy.getActive') {
+                    const { name, description } = payload;
+                    log(`Active strategy: {bold}${name}{/}\n  ${description}`);
+                } else if (tool_name === 'strategy.setActive') {
+                    log(`Strategy set to: {bold}${payload.activeStrategy}{/}`);
                 } else {
                     const full = JSON.stringify(payload, null, 2);
                     const summary = `Received data for ${tool_name}`;
@@ -340,6 +367,10 @@ const commands = {
         description: 'Assert a fact or rule in natural language. Usage: /assert <natural language statement>',
         action: (args) => sendMessage('session.assert', { sessionId, naturalLanguageInput: args }),
     },
+    '/critique': {
+        description: 'Critique and refine a rule. Usage: /critique <natural language rule>',
+        action: (args) => sendMessage('session.critiqueAndRefine', { sessionId, naturalLanguageInput: args }),
+    },
     '/query': {
         description: 'Ask a question in natural language. Usage: /query <natural language question>',
         action: (args) => sendMessage('session.query', { sessionId, naturalLanguageInput: args }),
@@ -349,15 +380,18 @@ const commands = {
         action: () => sendMessage('session.get_kb', { sessionId }),
     },
     '/strategy': {
-        description: 'Manage strategies. Usage: /strategy list | /strategy set <name>',
+        description: 'Manage strategies. Usage: /strategy list | set <name> | active',
         action: (args) => {
             const [subcommand, ...rest] = args.split(' ');
+            const name = rest.join(' ');
             if (subcommand === 'list') {
                 sendMessage('strategy.list', {});
-            } else if (subcommand === 'set' && rest.length > 0) {
-                sendMessage('strategy.setActive', { name: rest.join(' ') });
+            } else if (subcommand === 'set' && name) {
+                sendMessage('strategy.setActive', { name });
+            } else if (subcommand === 'active') {
+                sendMessage('strategy.getActive', {});
             } else {
-                log('{yellow-fg}Usage: /strategy list | /strategy set <name>{/}');
+                log('{yellow-fg}Usage: /strategy list | set <name> | active{/}');
             }
         }
     },
@@ -368,11 +402,30 @@ const commands = {
             examplesList.focus();
         }
     },
+    '/explain': {
+        description: 'Translate a Prolog fact/rule into natural language. Usage: /explain <prolog>',
+        action: (args) => sendMessage('session.explain', { sessionId, prologRule: args }),
+    },
     '/help': {
         description: 'Show this help message.',
         action: () => {
             const helpText = Object.entries(commands).map(([cmd, { description }]) => `{bold}${cmd}{/}: ${description}`).join('\n');
             log({ summary: 'Available Commands:', full: helpText });
+        }
+    },
+    '/llm': {
+        description: 'Manage LLM configuration. Usage: /llm show | providers | set <provider> [model]',
+        action: (args) => {
+            const [subcommand, provider, model] = args.split(' ');
+            if (subcommand === 'show') {
+                sendMessage('llm.getLlmConfig', {});
+            } else if (subcommand === 'providers') {
+                sendMessage('llm.getAvailableLlmProviders', {});
+            } else if (subcommand === 'set' && provider) {
+                sendMessage('llm.setLlmConfig', { provider, options: { model } });
+            } else {
+                log('{yellow-fg}Usage: /llm show | providers | set <provider> [model]{/}');
+            }
         }
     },
     '/quit': {
