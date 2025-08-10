@@ -40,10 +40,8 @@ This combination unlocks a new class of more robust, explainable, and sophistica
 -   **`tau-prolog` Integration**: Leverages the power of `tau-prolog`, a fully-featured Prolog interpreter written in JavaScript, for all symbolic reasoning.
 -   **`langchain.js` Powered**: Uses `langchain.js` for sophisticated LLM interactions, including prompt management, output parsing, and the creation of complex reasoning chains using LangChain Expression Language (LCEL).
 -   **Terminal User Interface (TUI)**: A powerful and intuitive terminal-based interface for all user interaction, including session management and system analysis.
--   **Stateful, Persistent Sessions**: Supports both in-memory and file-based session storage, allowing knowledge bases to persist across server restarts.
+-   **Stateful Sessions**: Supports in-memory session storage.
 -   **Extensible LLM Support**: Pluggable architecture for supporting various LLM providers (OpenAI, Gemini, Ollama, etc.).
--   **Automated Evolution Engine**: A self-optimizing system that autonomously discovers, evaluates, and refines translation strategies to continuously improve performance.
--   **MCP Integration**: Ready to serve as a reasoning tool for AI clients that support the Model Context Protocol.
 
 ### `langchain.js` Integration
 
@@ -58,33 +56,9 @@ This combination unlocks a new class of more robust, explainable, and sophistica
 
 -   **Simplified Strategy Execution**: The `StrategyExecutor`'s role becomes orchestrating the invocation of these pre-defined `langchain.js` chains, simplifying the core logic and delegating the complexities of the LLM interaction to LangChain. This makes it easier to experiment with and evolve new strategies.
 
-### 🤖 The MCR Evolution Engine: AutoML for Logic
+### 🚀 Getting Started
 
-`mcr3` includes a sophisticated **Evolution Engine**, a supervisory control loop designed to autonomously discover, evaluate, and refine translation strategies. This engine works to continuously improve MCR's performance, accuracy, and efficiency, making the system not just intelligent, but intelligently self-improving.
-
-The system is bootstrapped with functional, human-authored strategies, ensuring immediate usability. The evolution process runs asynchronously, augmenting the pool of available strategies with new, optimized versions.
-
-#### Core Components
-
-1.  **Optimization Coordinator**: This is the orchestrator of the entire evolution loop. It selects existing strategies for improvement, invokes the `StrategyEvolver` to create new candidates, evaluates them, and persists the results to the Performance Database.
-
-2.  **Strategy Evolver**: Creates new candidate strategies by mutating existing ones. The primary mutation method is "Iterative Critique": it uses an LLM to critique and rewrite a strategy's prompt to address specific examples on which it previously failed.
-
-3.  **Curriculum Generator**: Expands the set of evaluation cases to prevent overfitting and ensure strategies are robust. It analyzes performance data to identify weaknesses in the current test curriculum and uses an LLM to generate new, targeted evaluation examples.
-
-4.  **Performance Database**: A SQLite database that stores the detailed results of every evaluation run. This data is crucial for all other components of the engine, providing the basis for strategy selection, evolution, and curriculum generation.
-
-5.  **Input Router**: A runtime optimizer that is part of the `MCR Service`. For each incoming request, it can query the `Performance Database` to select the optimal strategy for that specific type of input, based on historical performance data (success rate, cost, latency).
-
-### 🚀 Getting Started & MCP Integration
-
-MCR3 is designed for two primary use cases:
-1.  **Standalone Tool**: Interacting directly with the MCR engine via its powerful Terminal UI (TUI).
-2.  **MCP Tool**: Serving as a reasoning engine for an AI agent or host that conforms to the Model Context Protocol (MCP).
-
-#### 1. Installation & Setup
-
-The setup process is the same for both use cases.
+**1. Installation & Setup**
 
 **A. Clone and Install:**
 ```bash
@@ -121,26 +95,14 @@ npm run tui
 ```
 The TUI provides an interactive command-line environment to create sessions, assert facts, ask questions, and manage the reasoning engine.
 
-#### 3. Usage as an MCP Tool
-
-MCR3 is a fully compliant MCP tool provider, ready to be auto-installed and used by MCP hosts.
-
-**For MCP Hosts (Auto-Installation):**
-An MCP host can install and run MCR3 with the following commands:
-```bash
-git clone https://github.com/your-repo/mcr3.git mcr3
-cd mcr3
-npm install
-npm start
-```
-The host must also provide the necessary environment variables (e.g., `MCR_LLM_PROVIDER`, `OPENAI_API_KEY`) for the `.env` file.
+#### 3. Usage via WebSocket
 
 **Connecting and Communicating:**
--   **Endpoint**: MCP clients should connect to the WebSocket server at `ws://localhost:8080/ws`.
--   **Protocol**: MCR3 listens for standard MCP `tool_invoke` and `tool_result` messages on this endpoint. It uses the `tool_name` to route requests to its internal functions.
+-   **Endpoint**: Clients should connect to the WebSocket server at `ws://localhost:8080/ws`.
+-   **Protocol**: MCR3 listens for `tool_invoke` and responds with `tool_result` messages on this endpoint. It uses the `tool_name` to route requests to its internal functions.
 
-**Example: Asserting a Fact via MCP**
-An MCP client would send a JSON message like this over the WebSocket connection:
+**Example: Asserting a Fact via WebSocket**
+A client would send a JSON message like this over the WebSocket connection:
 ```json
 {
   "type": "tool_invoke",
@@ -149,13 +111,22 @@ An MCP client would send a JSON message like this over the WebSocket connection:
     "tool_name": "session.assert",
     "input": {
       "sessionId": "session-abc",
-      "nl_assertion": "Socrates is a man."
+      "naturalLanguageInput": "Socrates is a man."
     }
   }
 }
 ```
 
 MCR3 will process this request and respond with a `tool_result` message.
+
+### 🤖 Future Work
+
+This version of MCR3 provides a solid foundation for neurosymbolic reasoning. Future versions could include:
+
+-   **Automated Evolution Engine**: A self-optimizing system that autonomously discovers, evaluates, and refines translation strategies to continuously improve performance.
+-   **MCP Integration**: Full compliance with the Model Context Protocol to serve as a reasoning tool for AI agents.
+-   **Persistent Sessions**: Support for file-based or database-backed session storage to allow knowledge bases to persist across server restarts.
+-   **Ontology-Awareness**: The ability to define and validate against an ontology to ensure the semantic consistency of the knowledge base.
 
 ### 🧪 Testing
 

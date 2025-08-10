@@ -12,25 +12,31 @@ jest.mock('../src/providers/llmProvider', () => {
       invoke: jest.fn().mockImplementation(async (prompt) => {
         const promptString = prompt.toString();
         if (promptString.includes('Socrates is a man')) {
-          return new AIMessage("man('Socrates').");
+          return new AIMessage({ content: "man('Socrates')." });
         }
         if (promptString.includes('Adam is human and Eve is human')) {
-          return new AIMessage(JSON.stringify({ facts: ["human('Adam').", "human('Eve')."] }));
+          return new AIMessage({
+            content: JSON.stringify({ facts: ["human('Adam').", "human('Eve')."] }),
+          });
         }
         if (promptString.includes('Who is a man?')) {
-          return new AIMessage("man(Who).");
+          return new AIMessage({ content: 'man(Who).' });
         }
         if (promptString.includes("man('Socrates').")) {
-          return new AIMessage("Socrates is a man.");
+          return new AIMessage({ content: 'Socrates is a man.' });
         }
-        if (promptString.includes("sibling(X, Y) :- parent(Z, X), parent(Z, Y).")) {
-          return new AIMessage("sibling(X, Y) :- parent(Z, X), parent(Z, Y), X \\= Y.");
+        if (
+          promptString.includes('sibling(X, Y) :- parent(Z, X), parent(Z, Y).')
+        ) {
+          return new AIMessage({
+            content: 'sibling(X, Y) :- parent(Z, X), parent(Z, Y), X \\= Y.',
+          });
         }
         if (promptString.includes('query": "Who is a man?"')) {
-            return new AIMessage("Socrates is a man.");
+          return new AIMessage({ content: 'Socrates is a man.' });
         }
         // Default fallback for query
-        return new AIMessage("test_query(X).");
+        return new AIMessage({ content: 'test_query(X).' });
       }),
     }),
     getAvailableProviders: () => ['openai', 'gemini', 'ollama'],
@@ -43,9 +49,9 @@ describe('Strategies Integration Test', () => {
     const { StringOutputParser } = require('@langchain/core/output_parsers');
     const { AIMessage } = require('@langchain/core/messages');
     const parser = new StringOutputParser();
-    const message = new AIMessage("hello");
+    const message = new AIMessage({ content: 'hello' });
     const result = await parser.invoke(message);
-    expect(result).toBe("hello");
+    expect(result).toBe('hello');
   });
 
   let mcrService;

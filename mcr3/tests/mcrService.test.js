@@ -98,20 +98,20 @@ describe('MCRService', () => {
   describe('query', () => {
     test('should translate NL->Prolog, get answers, and translate Prolog->NL', async () => {
       const input = 'is Socrates a man?';
-      const prologQuery = 'nl_to_rule(is_socrates_a_man).';
+      const prologQuery = 'nl-to-query(is Socrates a man?).';
       // The mock reasoner returns substitutions with a 'links' property, which is what the service uses.
       const structuredAnswers = [{ links: { X: 'test' } }];
-      const finalAnswer = "Yes, Socrates is a man.";
+      const finalAnswer = 'Yes, Socrates is a man.';
 
       // Mock the strategy implementations for this specific test
-      mockStrategyManager.getStrategy.mockImplementation(name => {
-        if (name === 'nl-to-rule') return { name: 'nl-to-rule' };
+      mockStrategyManager.getStrategy.mockImplementation((name) => {
+        if (name === 'nl-to-query') return { name: 'nl-to-query' };
         if (name === 'answers-to-nl') return { name: 'answers-to-nl' };
         return { name: 'some-default' };
       });
 
       mockStrategyExecutor.execute.mockImplementation(async (strategy, inputs) => {
-        if (strategy.name === 'nl-to-rule') return prologQuery;
+        if (strategy.name === 'nl-to-query') return prologQuery;
         if (strategy.name === 'answers-to-nl') return finalAnswer;
         return 'default execution';
       });
@@ -122,13 +122,21 @@ describe('MCRService', () => {
       const result = await mcrService.query('mockSessionId', input);
 
       // 1. Verify the NL -> Prolog step
-      expect(mockStrategyManager.getStrategy).toHaveBeenCalledWith('nl-to-rule');
-      expect(mockStrategyExecutor.execute).toHaveBeenCalledWith({ name: 'nl-to-rule' }, { input });
-      expect(reasoner.query).toHaveBeenCalledWith({ id: 'prologSession' }, prologQuery);
+      expect(mockStrategyManager.getStrategy).toHaveBeenCalledWith('nl-to-query');
+      expect(mockStrategyExecutor.execute).toHaveBeenCalledWith(
+        { name: 'nl-to-query' },
+        { input }
+      );
+      expect(reasoner.query).toHaveBeenCalledWith(
+        { id: 'prologSession' },
+        prologQuery
+      );
 
       // 2. Verify the Prolog -> NL step
       expect(mockStrategyManager.getStrategy).toHaveBeenCalledWith('answers-to-nl');
-      const answersAsString = JSON.stringify(structuredAnswers.map(a => a.links));
+      const answersAsString = JSON.stringify(
+        structuredAnswers.map((a) => a.links)
+      );
       expect(mockStrategyExecutor.execute).toHaveBeenCalledWith(
         { name: 'answers-to-nl' },
         { query: input, answers: answersAsString }
