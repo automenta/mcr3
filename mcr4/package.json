@@ -1,0 +1,25 @@
+{
+  "name": "mcr4-helios",
+  "version": "1.0.0",
+  "description": "The Model Context Reasoner (Helios) Server",
+  "main": "mcr-helios-server.js",
+  "type": "module",
+  "scripts": {
+    "start": "node mcr-helios-server.js",
+    "test": "npm install && NODE_OPTIONS=--experimental-vm-modules jest --bail"
+  },
+  "dependencies": {
+    "@langchain/community": "^0.2.10",
+    "@langchain/core": "^0.2.5",
+    "@langchain/google-genai": "^0.0.19",
+    "@langchain/openai": "^0.1.3",
+    "lowdb": "^5.1.0",
+    "tau-prolog": "^0.3.3"
+  },
+  "devDependencies": {
+    "jest": "^29.7.0"
+  },
+  "jest": {
+    "transform": {}
+  }
+}
