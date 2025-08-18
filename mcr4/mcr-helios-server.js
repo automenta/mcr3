@@ -177,6 +177,43 @@ class McrWorkspace {
         this.#saveTimers.set(kbId, timer);
     }
 
+    async shutdown() {
+        // Clear all debounced timers to prevent them from running during shutdown
+        for (const timer of this.#saveTimers.values()) {
+            clearTimeout(timer);
+        }
+        this.#saveTimers.clear();
+
+        // Collect all promises for saving dirty KBs
+        const savePromises = [];
+        for (const [kbId, liveSession] of this.#kbCache.entries()) {
+            if (liveSession.isDirty) {
+                const promise = (async () => {
+                    try {
+                        const snapshot = await this.#getDbSnapshot(liveSession.prolog);
+                        this.#db.data.sessions[kbId].prologSnapshot = snapshot;
+                        liveSession.isDirty = false;
+                        console.error(`[Workspace] Saving dirty KB ${kbId} during shutdown.`);
+                    } catch (error) {
+                        console.error(`[Workspace] Error saving KB ${kbId} during shutdown:`, error);
+                    }
+                })();
+                savePromises.push(promise);
+            }
+        }
+
+        // If there were any dirty sessions, wait for all saves to be prepared and then write to DB once.
+        if (savePromises.length > 0) {
+            await Promise.all(savePromises);
+            try {
+                await this.#db.write();
+                console.error(`[Workspace] Successfully persisted ${savePromises.length} KBs to disk during shutdown.`);
+            } catch (error) {
+                console.error(`[Workspace] Critical error writing database file during shutdown:`, error);
+            }
+        }
+    }
+
     // --- Public API Methods ---
 
     // --- kb.* ---
@@ -289,20 +326,33 @@ class McrWorkspace {
 
                 switch (command.toUpperCase()) {
                     case 'ASSERT':
-                    case 'RETRACT':
+                    case 'RETRACT': {
                         anyAsserts = true;
-                        // Use query as a syntax check. Throws on bad syntax.
-                        prolog.query(args[0]);
+                        const program = args[0];
+
+                        // Validation: The system design requires structured facts. Simple atoms are disallowed.
+                        // This regex checks for a simple atom clause like `foo.` which is valid Prolog but not supported here.
+                        if (/^[a-z_][a-zA-Z0-9_]*\.$/.test(program.trim())) {
+                            throw new Error(`Prolog error in step ${index + 1} (${commandStr}): Simple atom facts like '${program}' are not supported. Facts must be structured terms, e.g., 'predicate(argument)'.`);
+                        }
+
+                        // Use query as a preliminary syntax check. It's not perfect but catches some errors.
+                        prolog.query(program);
                         await new Promise((resolve, reject) => {
-                            prolog.consult(args[0], {
+                            prolog.consult(program, {
                                 success: () => resolve(),
                                 error: (err) => reject(new Error(`Prolog error in step ${index + 1} (${commandStr}): ${err}`)),
                             });
                         });
                         break;
-                    case 'QUERY':
+                    }
+                    case 'QUERY': {
                         finalResult = [];
                         const query = prolog.query(args[0]);
+                        if (!query || typeof query.next !== 'function') {
+                            // This can happen if the prolog session is in a corrupted state after a failed consult.
+                            throw new Error(`Prolog engine error: prolog.query() failed for query "${args[0]}". The session may be corrupted.`);
+                        }
                         let answer;
                         while ((answer = await new Promise(res => query.next(res)))) {
                             if (session.is_substitution(answer)) {
@@ -313,6 +363,7 @@ class McrWorkspace {
                             finalResult.push("Yes / True.");
                         }
                         break;
+                    }
                     default:
                         throw new Error(`Unknown command in step ${index + 1}: ${command}`);
                 }
@@ -587,6 +638,7 @@ async function main() {
 
     const shutdown = async (signal) => {
         console.error(`\n[Main] Received ${signal}. Shutting down gracefully...`);
+        await workspace.shutdown();
         console.error('[Main] MCR Helios Server has shut down.');
         process.exit(0);
     };

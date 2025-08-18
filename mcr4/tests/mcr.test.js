@@ -246,7 +246,9 @@ describe('MCR Helios Server', () => {
 
         it('Test 4.3 (Verification of Isolation)', async () => {
             const { knowledgeBase } = await client.call('system.get_kb', { id: 'rules' });
-            expect(knowledgeBase).toContain('parent(X, Y) :- father(X, Y).');
+            // Normalize whitespace to prevent test failures due to formatting differences
+            const normalize = (str) => str.replace(/\s+/g, '');
+            expect(normalize(knowledgeBase)).toContain(normalize('parent(X, Y) :- father(X, Y).'));
             expect(knowledgeBase).not.toContain('father(john, mary).');
         });
     });
